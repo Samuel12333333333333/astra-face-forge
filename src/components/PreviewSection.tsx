@@ -34,42 +34,34 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
     setSelectedImage(null);
     
     try {
-      // Get the auth token from Supabase
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      
-      if (!token) {
-        throw new Error("Authentication required");
-      }
+      console.log("Starting headshot generation with tune ID:", tuneId);
+      console.log("Selected style:", selectedStyle);
       
       // Set up the prompt based on selected style
       let prompt = "professional headshot";
       
-      // Generate images using the API
-      const response = await fetch('/api/astria/generate-headshots', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          prompt: prompt,
-          numImages: 4,
-          styleType: selectedStyle
-        })
+      // Generate images using Supabase Function
+      const { data, error } = await supabase.functions.invoke('astria/generate-headshots', {
+        body: { 
+          prompt, 
+          numImages: 4, 
+          styleType: selectedStyle 
+        }
       });
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to generate headshots: ${errorText}`);
+      if (error) {
+        console.error("Generation error:", error);
+        throw new Error(`Failed to generate headshots: ${error.message}`);
       }
       
-      const result = await response.json();
+      console.log("Generation response:", data);
       
-      if (result.images && Array.isArray(result.images)) {
-        const imageUrls = result.images.map((img: any) => img.url);
+      if (data && data.images && Array.isArray(data.images)) {
+        const imageUrls = data.images.map((img: any) => img.url);
         setGeneratedImages(imageUrls);
+        console.log("Generated image URLs:", imageUrls);
       } else {
+        console.error("Unexpected response format:", data);
         toast.error("No images were generated");
       }
     } catch (error: any) {

@@ -30,14 +30,6 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
     setProgress(5);
     
     try {
-      // Get the auth token from Supabase
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      
-      if (!token) {
-        throw new Error("Authentication required");
-      }
-      
       console.log("Starting training with image IDs:", imageIds);
       
       // Create tune using Supabase Functions.invoke
@@ -55,14 +47,19 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
       
       console.log("Training response:", data);
       
-      setTuneId(data.id);
-      setStatus("training");
-      setProgress(15);
-      toast.success("Training started successfully!");
-      
-      // Set up interval to check status
-      const interval = setInterval(checkTrainingStatus, 10000); // Check every 10 seconds
-      setStatusCheckInterval(interval);
+      if (data && data.id) {
+        setTuneId(data.id);
+        setStatus("training");
+        setProgress(15);
+        toast.success("Training started successfully!");
+        
+        // Set up interval to check status
+        const interval = setInterval(checkTrainingStatus, 10000); // Check every 10 seconds
+        setStatusCheckInterval(interval);
+      } else {
+        console.error("Missing tuneId in response:", data);
+        throw new Error("Failed to get tune ID from response");
+      }
     } catch (error: any) {
       console.error("Training error:", error);
       toast.error(`Error starting training: ${error.message}`);
@@ -73,10 +70,14 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
   // Check training status
   const checkTrainingStatus = async () => {
     try {
-      console.log("Checking training status...");
+      if (!tuneId) {
+        console.error("No tuneId available for status check");
+        return;
+      }
+
+      console.log("Checking training status for tune:", tuneId);
       
       const { data, error } = await supabase.functions.invoke('astria/check-status', {
-        // We can add the tuneId here to check status for a specific tune
         body: { tuneId: tuneId }
       });
       
@@ -86,6 +87,11 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
       }
       
       console.log("Status check response:", data);
+      
+      if (!data || typeof data.status === 'undefined') {
+        console.error("Invalid status check response:", data);
+        return;
+      }
       
       setStatus(data.status);
       
@@ -97,7 +103,11 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
         if (statusCheckInterval) {
           clearInterval(statusCheckInterval);
         }
-        onTrainingComplete(data.id);
+        
+        // Ensure we have a valid tuneId to pass
+        const idToPass = data.id || tuneId;
+        console.log("Training completed! Tune ID:", idToPass);
+        onTrainingComplete(idToPass);
         toast.success("Training completed successfully!");
       } else if (data.status === "failed") {
         setProgress(0);

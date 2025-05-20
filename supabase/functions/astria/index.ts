@@ -336,7 +336,20 @@ async function checkTuneStatus(req: Request, userId: string) {
 async function generateHeadshots(req: Request, userId: string) {
   try {
     console.log("Processing generate headshots request");
-    const { prompt, numImages, styleType } = await req.json();
+    let requestBody;
+    
+    try {
+      requestBody = await req.json();
+      console.log("Request body:", JSON.stringify(requestBody));
+    } catch (jsonError) {
+      console.error('JSON parsing error:', jsonError);
+      return new Response(
+        JSON.stringify({ error: "Invalid JSON in request body" }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    const { prompt, numImages, styleType } = requestBody;
     
     if (!prompt) {
       return new Response(
@@ -355,11 +368,14 @@ async function generateHeadshots(req: Request, userId: string) {
       .single();
     
     if (tuneError || !userTune) {
+      console.error('Tune lookup error:', tuneError);
       return new Response(
-        JSON.stringify({ error: "No tune found for this user" }),
+        JSON.stringify({ error: "No tune found for this user", details: tuneError?.message }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log("Found tune ID for generation:", userTune.tune_id);
     
     // Generate images using the tune
     let promptText = prompt;
@@ -373,6 +389,8 @@ async function generateHeadshots(req: Request, userId: string) {
       promptText = `${prompt}, artistic lighting, creative setting, high contrast, professional photography`;
     }
     
+    console.log("Sending generation request to Astria with prompt:", promptText);
+    
     const response = await fetch(`https://api.astria.ai/tunes/${userTune.tune_id}/prompts`, {
       method: 'POST',
       headers: {
@@ -381,12 +399,26 @@ async function generateHeadshots(req: Request, userId: string) {
       },
       body: JSON.stringify({
         prompt: promptText,
-        num_images: numImages || 6
+        num_images: numImages || 4
       })
     });
     
-    const result = await response.json();
-    console.log("Astria generate headshots response:", JSON.stringify(result).substring(0, 500));
+    let result;
+    try {
+      result = await response.json();
+      console.log("Astria generate headshots response:", JSON.stringify(result).substring(0, 500));
+    } catch (jsonError) {
+      console.error('JSON parsing error:', jsonError);
+      const responseText = await response.text();
+      return new Response(
+        JSON.stringify({ 
+          error: "Failed to parse Astria API response", 
+          details: jsonError.message,
+          responseText: responseText.substring(0, 500)
+        }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     if (!response.ok) {
       throw new Error(`Astria API error: ${result.error || response.statusText}`);
