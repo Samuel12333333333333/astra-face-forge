@@ -1,1 +1,5 @@
+
 project_id = "chxhuollywzttaywrrxg"
+
+[functions.astria]
+verify_jwt = true

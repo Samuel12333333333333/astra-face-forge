@@ -1,17 +1,23 @@
 
 import React, { useState } from "react";
 import Header from "@/components/Header";
-import UploadSection from "@/components/UploadSection";
 import StyleSelector from "@/components/StyleSelector";
 import PreviewSection from "@/components/PreviewSection";
+import MultiUploadSection from "@/components/MultiUploadSection";
+import TrainingSection from "@/components/TrainingSection";
 
 const Index = () => {
-  const [currentStep, setCurrentStep] = useState<"upload" | "style" | "preview">("upload");
-  const [uploadedImage, setUploadedImage] = useState<File | null>(null);
+  const [currentStep, setCurrentStep] = useState<"upload" | "training" | "style" | "preview">("upload");
+  const [uploadedImageIds, setUploadedImageIds] = useState<string[]>([]);
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
+  const [tuneId, setTuneId] = useState<string | null>(null);
 
-  const handlePhotoUploaded = (file: File) => {
-    setUploadedImage(file);
+  const handleImagesUploaded = (imageIds: string[]) => {
+    setUploadedImageIds(imageIds);
+  };
+
+  const handleTrainingComplete = (generatedTuneId: string) => {
+    setTuneId(generatedTuneId);
   };
 
   const handleStyleSelected = (styleId: string) => {
@@ -27,7 +33,7 @@ const Index = () => {
         {currentStep === "upload" && (
           <div className="mb-12">
             <div className="text-center max-w-3xl mx-auto">
-              <h1 className="mb-4 bg-gradient-to-r from-brand-700 to-brand-500 bg-clip-text text-transparent">
+              <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl lg:text-6xl mb-4 bg-gradient-to-r from-brand-700 to-brand-500 bg-clip-text text-transparent">
                 Professional AI Headshots in Minutes
               </h1>
               <p className="text-xl text-muted-foreground mb-8">
@@ -38,8 +44,16 @@ const Index = () => {
         )}
         
         {currentStep === "upload" && (
-          <UploadSection 
-            onPhotoUploaded={handlePhotoUploaded}
+          <MultiUploadSection 
+            onImagesUploaded={handleImagesUploaded}
+            onContinue={() => setCurrentStep("training")}
+          />
+        )}
+        
+        {currentStep === "training" && (
+          <TrainingSection 
+            imageIds={uploadedImageIds}
+            onTrainingComplete={handleTrainingComplete}
             onContinue={() => setCurrentStep("style")}
           />
         )}
@@ -47,15 +61,15 @@ const Index = () => {
         {currentStep === "style" && (
           <StyleSelector 
             onStyleSelected={handleStyleSelected}
-            onBack={() => setCurrentStep("upload")}
+            onBack={() => setCurrentStep("training")}
             onContinue={() => setCurrentStep("preview")}
           />
         )}
         
         {currentStep === "preview" && (
           <PreviewSection 
-            uploadedImage={uploadedImage}
             selectedStyle={selectedStyle}
+            tuneId={tuneId}
             onBack={() => setCurrentStep("style")}
           />
         )}
