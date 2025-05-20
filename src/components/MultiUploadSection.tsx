@@ -60,11 +60,11 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
           const formData = new FormData();
           formData.append('image', files[i]);
           
-          // Make the API request using Supabase Functions.invoke
+          // Make the API request using Supabase Functions.invoke properly with binary content
           const { data, error } = await supabase.functions.invoke('astria/upload-images', {
-            body: formData,
+            body: files[i], // Send the file directly as binary
             headers: {
-              'Authorization': `Bearer ${token}`
+              'Content-Type': files[i].type,
             }
           });
           

@@ -32,7 +32,12 @@ serve(async (req) => {
     }
     
     const url = new URL(req.url);
-    const action = url.pathname.split('/').pop();
+    const pathParts = url.pathname.split('/');
+    const action = pathParts[pathParts.length - 1]; // Get the last part of the path
+    
+    console.log("Request path:", url.pathname);
+    console.log("Action identified:", action);
+    
     const authHeader = req.headers.get('Authorization');
     
     if (!authHeader) {
@@ -54,6 +59,8 @@ serve(async (req) => {
     }
 
     const userId = user.id;
+    console.log("User ID:", userId);
+    console.log("Processing action:", action);
     
     // Process based on action
     if (action === 'upload-images') {
@@ -81,32 +88,35 @@ serve(async (req) => {
 
 async function handleImageUpload(req: Request, userId: string) {
   try {
-    // First check if we can parse the form data
-    let formData;
-    try {
-      formData = await req.formData();
-    } catch (formError) {
-      console.error('Form data parsing error:', formError);
+    console.log("Processing image upload");
+    
+    // Get the image file from the request body
+    const imageBlob = await req.blob();
+    const contentType = req.headers.get('Content-Type') || 'image/jpeg';
+    
+    if (!imageBlob || imageBlob.size === 0) {
       return new Response(
-        JSON.stringify({ error: "Unable to parse form data", details: formError.message }),
+        JSON.stringify({ error: "No image provided or image is empty" }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
-    const image = formData.get('image') as File;
-    
-    if (!image) {
-      return new Response(
-        JSON.stringify({ error: "No image provided" }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    console.log(`Received image: ${contentType}, size: ${imageBlob.size} bytes`);
     
     // Build FormData for Astria API
     const astriaFormData = new FormData();
-    astriaFormData.append('image', image);
+    
+    // Convert blob to File with a proper name
+    const imageFile = new File(
+      [imageBlob], 
+      `user_${userId}_${Date.now()}.${contentType.split('/')[1] || 'jpg'}`,
+      { type: contentType }
+    );
+    
+    astriaFormData.append('image', imageFile);
     
     // Send to Astria
+    console.log("Sending image to Astria API...");
     let response;
     try {
       response = await fetch('https://api.astria.ai/images/upload', {
@@ -128,6 +138,7 @@ async function handleImageUpload(req: Request, userId: string) {
     let result;
     try {
       result = await response.json();
+      console.log("Astria API response:", JSON.stringify(result));
     } catch (jsonError) {
       console.error('JSON parsing error:', jsonError);
       const responseText = await response.text();
@@ -161,6 +172,7 @@ async function handleImageUpload(req: Request, userId: string) {
 
 async function createTune(req: Request, userId: string) {
   try {
+    console.log("Processing create tune request");
     let requestBody;
     try {
       requestBody = await req.json();
@@ -182,6 +194,7 @@ async function createTune(req: Request, userId: string) {
     }
     
     // Create tune on Astria
+    console.log(`Creating tune with ${imageIds.length} images`);
     let response;
     try {
       response = await fetch('https://api.astria.ai/tunes', {
@@ -210,6 +223,7 @@ async function createTune(req: Request, userId: string) {
     let result;
     try {
       result = await response.json();
+      console.log("Astria create tune response:", JSON.stringify(result));
     } catch (jsonError) {
       console.error('JSON parsing error:', jsonError);
       const responseText = await response.text();
@@ -252,6 +266,18 @@ async function createTune(req: Request, userId: string) {
 
 async function checkTuneStatus(req: Request, userId: string) {
   try {
+    console.log("Checking tune status for user:", userId);
+    let requestBody = {};
+    
+    // If a specific tuneId was sent in the request body, use it
+    try {
+      requestBody = await req.json();
+    } catch (e) {
+      // No JSON body, that's fine
+    }
+    
+    const requestTuneId = requestBody.tuneId;
+    
     // Get tune ID from the database for this user
     const { data: userTune, error: tuneError } = await supabase
       .from('user_tunes')
@@ -268,8 +294,11 @@ async function checkTuneStatus(req: Request, userId: string) {
       );
     }
     
+    const tuneId = requestTuneId || userTune.tune_id;
+    console.log("Checking status for tune ID:", tuneId);
+    
     // Check status on Astria
-    const response = await fetch(`https://api.astria.ai/tunes/${userTune.tune_id}`, {
+    const response = await fetch(`https://api.astria.ai/tunes/${tuneId}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${ASTRIA_API_KEY}`,
@@ -277,6 +306,7 @@ async function checkTuneStatus(req: Request, userId: string) {
     });
     
     const result = await response.json();
+    console.log("Astria tune status response:", JSON.stringify(result));
     
     if (!response.ok) {
       throw new Error(`Astria API error: ${result.error || response.statusText}`);
@@ -287,7 +317,7 @@ async function checkTuneStatus(req: Request, userId: string) {
       await supabase
         .from('user_tunes')
         .update({ status: result.status })
-        .eq('tune_id', userTune.tune_id);
+        .eq('tune_id', tuneId);
     }
     
     return new Response(
@@ -305,6 +335,7 @@ async function checkTuneStatus(req: Request, userId: string) {
 
 async function generateHeadshots(req: Request, userId: string) {
   try {
+    console.log("Processing generate headshots request");
     const { prompt, numImages, styleType } = await req.json();
     
     if (!prompt) {
@@ -355,6 +386,7 @@ async function generateHeadshots(req: Request, userId: string) {
     });
     
     const result = await response.json();
+    console.log("Astria generate headshots response:", JSON.stringify(result).substring(0, 500));
     
     if (!response.ok) {
       throw new Error(`Astria API error: ${result.error || response.statusText}`);

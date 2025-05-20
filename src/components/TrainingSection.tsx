@@ -75,7 +75,10 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
     try {
       console.log("Checking training status...");
       
-      const { data, error } = await supabase.functions.invoke('astria/check-status');
+      const { data, error } = await supabase.functions.invoke('astria/check-status', {
+        // We can add the tuneId here to check status for a specific tune
+        body: { tuneId: tuneId }
+      });
       
       if (error) {
         console.error("Status check error:", error);
