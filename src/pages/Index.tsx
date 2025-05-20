@@ -8,6 +8,7 @@ import TrainingSection from "@/components/TrainingSection";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { User } from "lucide-react";
 
 const Index = () => {
   const [currentStep, setCurrentStep] = useState<"upload" | "training" | "style" | "preview">("upload");
@@ -137,7 +138,7 @@ const Index = () => {
               Please sign in to create your professional AI headshots
             </p>
             <Button onClick={handleSignIn} size="lg">
-              Sign in with Google
+              <User className="mr-2 h-4 w-4" /> Sign in with Google
             </Button>
           </div>
         ) : (
@@ -188,30 +189,6 @@ const Index = () => {
             )}
           </>
         )}
-        
-        {/* Debug panel */}
-        <div className="mt-8 p-4 border border-gray-200 rounded text-xs text-gray-500">
-          <p>Debug Info:</p>
-          <p>Current Step: {currentStep}</p>
-          <p>TuneId: {tuneId || localStorage.getItem('currentTuneId') || 'Not available'}</p>
-          <p>Selected Style: {selectedStyle || localStorage.getItem('selectedStyle') || 'Not selected'}</p>
-          <p>Uploaded Image IDs: {uploadedImageIds.length > 0 ? `${uploadedImageIds.length} images` : 'None'}</p>
-          <button 
-            className="text-xs text-red-500 mt-2 underline"
-            onClick={() => {
-              localStorage.removeItem('currentTuneId');
-              localStorage.removeItem('selectedStyle');
-              localStorage.removeItem('currentStep');
-              setTuneId(null);
-              setSelectedStyle(null);
-              setCurrentStep("upload");
-              setUploadedImageIds([]);
-              toast.success("Debug: App state reset");
-            }}
-          >
-            Reset App State
-          </button>
-        </div>
       </main>
       
       <footer className="border-t py-6">
