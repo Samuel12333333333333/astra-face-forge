@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -45,8 +45,6 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
     try {
       console.log("Starting upload of", files.length, "images");
       
-      // Use a direct URL to the Astria API instead of going through the edge function
-      // This is a temporary solution to bypass the 404 error
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         console.log(`Uploading image ${i+1}/${files.length}: ${file.name} (${file.type}, ${file.size} bytes)`);
@@ -57,15 +55,32 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
         }
         
         try {
-          // Use a mock ID for testing purposes since the actual API is returning 404
-          // In a production environment, this would be replaced with the actual API call
-          const mockId = `mock-image-${Date.now()}-${i}`;
-          imageIds.push(mockId);
-          setUploadedCount(prev => prev + 1);
-          console.log(`Successfully mocked upload for image ${i+1}, assigned ID: ${mockId}`);
+          // Convert file to base64
+          const base64Data = await fileToBase64(file);
           
-          // Add a small delay to simulate network request
-          await new Promise(resolve => setTimeout(resolve, 300));
+          // Call the Supabase Edge Function directly with the correct path
+          const { data, error } = await supabase.functions.invoke('astria', {
+            body: {
+              action: 'upload-images',
+              image: base64Data,
+              filename: file.name,
+              contentType: file.type
+            }
+          });
+          
+          if (error) {
+            throw new Error(`Error invoking function: ${error.message}`);
+          }
+          
+          console.log(`Image ${i+1} upload response:`, data);
+          
+          if (data && data.id) {
+            imageIds.push(data.id);
+            setUploadedCount(prev => prev + 1);
+            console.log(`Successfully uploaded image ${i+1}, received ID: ${data.id}`);
+          } else {
+            throw new Error(`Missing ID in response for image ${i+1}`);
+          }
         } catch (uploadError: any) {
           console.error(`Upload error for image ${i+1}:`, uploadError);
           toast.error(`Error uploading image ${i+1}: ${uploadError.message}`);
@@ -75,9 +90,9 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
       if (imageIds.length > 0) {
         setUploadedImageIds(imageIds);
         onImagesUploaded(imageIds);
-        toast.success(`Successfully processed ${imageIds.length} out of ${files.length} images`);
+        toast.success(`Successfully uploaded ${imageIds.length} out of ${files.length} images`);
       } else {
-        toast.error("Failed to process any images. Please try again.");
+        toast.error("Failed to upload any images. Please try again.");
       }
     } catch (error: any) {
       console.error("Upload error:", error);
@@ -152,7 +167,14 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
               disabled={files.length === 0 || uploading}
               className="w-full"
             >
-              {uploading ? `Uploading... (${uploadedCount}/${files.length})` : "Upload Photos"}
+              {uploading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
+                  Uploading... ({uploadedCount}/{files.length})
+                </>
+              ) : (
+                "Upload Photos"
+              )}
             </Button>
             
             <Button 
@@ -167,7 +189,6 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
           
           <div className="text-sm text-muted-foreground mt-4 text-center">
             <p>For best results, upload 3-20 clear photos with good lighting and different facial expressions.</p>
-            <p className="mt-2 text-xs text-orange-500">Note: Currently running in demo mode as the API connection is being configured.</p>
           </div>
         </CardContent>
       </Card>

@@ -31,13 +31,6 @@ serve(async (req) => {
       );
     }
     
-    const url = new URL(req.url);
-    const pathParts = url.pathname.split('/');
-    const action = pathParts[pathParts.length - 1]; 
-    
-    console.log("Request path:", url.pathname);
-    console.log("Action identified:", action);
-    
     // Authentication check
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
@@ -59,18 +52,23 @@ serve(async (req) => {
 
     const userId = user.id;
     console.log("User ID:", userId);
+    
+    // Parse the request body to get the action
+    const requestBody = await req.json();
+    const action = requestBody.action;
+    
     console.log("Processing action:", action);
     
     // Route requests based on action
     switch(action) {
       case 'upload-images':
-        return await handleImageUpload(req, userId);
+        return await handleImageUpload(requestBody, userId);
       case 'create-tune':
-        return await createTune(req, userId);
+        return await createTune(requestBody, userId);
       case 'generate-headshots':
-        return await generateHeadshots(req, userId);
+        return await generateHeadshots(requestBody, userId);
       case 'check-status':
-        return await checkTuneStatus(req, userId);
+        return await checkTuneStatus(requestBody, userId);
       default:
         return new Response(
           JSON.stringify({ error: "Invalid action", action }),
@@ -86,12 +84,9 @@ serve(async (req) => {
   }
 });
 
-async function handleImageUpload(req: Request, userId: string) {
+async function handleImageUpload(requestData: any, userId: string) {
   try {
     console.log("Processing image upload for user:", userId);
-    
-    // Get image data from request as JSON now, not blob
-    const requestData = await req.json();
     
     // Check if we have the required data
     if (!requestData || !requestData.image) {
@@ -174,10 +169,9 @@ async function handleImageUpload(req: Request, userId: string) {
   }
 }
 
-async function createTune(req: Request, userId: string) {
+async function createTune(requestBody: any, userId: string) {
   try {
     console.log("Processing create tune request for user:", userId);
-    const requestBody = await req.json();
     
     const { imageIds, callbackUrl } = requestBody;
     
@@ -248,18 +242,11 @@ async function createTune(req: Request, userId: string) {
   }
 }
 
-async function checkTuneStatus(req: Request, userId: string) {
+async function checkTuneStatus(requestBody: any, userId: string) {
   try {
     console.log("Checking tune status for user:", userId);
-    let requestBody;
     
-    try {
-      requestBody = await req.json();
-    } catch {
-      requestBody = {};
-    }
-    
-    const requestTuneId = requestBody.tuneId;
+    const { tuneId: requestTuneId } = requestBody;
     
     // Get tune ID from the database for this user if not specified
     let tuneId = requestTuneId;
@@ -338,10 +325,9 @@ async function checkTuneStatus(req: Request, userId: string) {
   }
 }
 
-async function generateHeadshots(req: Request, userId: string) {
+async function generateHeadshots(requestBody: any, userId: string) {
   try {
     console.log("Processing generate headshots request for user:", userId);
-    const requestBody = await req.json();
     console.log("Request body:", JSON.stringify(requestBody));
     
     const { prompt, numImages, styleType, tuneId: requestTuneId } = requestBody;

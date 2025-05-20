@@ -39,39 +39,88 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
 
     setIsTraining(true);
     setProgress(0);
+    setStatus('training');
     
     try {
-      // In a real implementation, this would call the actual API
-      // Since we're using mock data for now, we'll simulate the training process
+      // Call the Supabase Edge Function to create a tune
+      const { data, error } = await supabase.functions.invoke('astria', {
+        body: {
+          action: 'create-tune',
+          imageIds: imageIds
+        }
+      });
       
-      // Mock tune ID for development
-      const mockTuneId = `tune-${Date.now()}`;
-      setTuneId(mockTuneId);
-      
-      // Simulate a training process
-      for (let i = 0; i <= 100; i += 5) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-        setProgress(i);
+      if (error) {
+        throw new Error(`Error creating tune: ${error.message}`);
       }
       
-      setStatus('complete');
-      onTrainingComplete(mockTuneId);
-      toast.success("Training completed successfully!");
+      if (!data || !data.id) {
+        throw new Error("No tune ID received from API");
+      }
+      
+      const newTuneId = data.id;
+      setTuneId(newTuneId);
+      localStorage.setItem('currentTuneId', newTuneId);
+      
+      // Start polling for status
+      const statusInterval = setInterval(async () => {
+        const status = await checkTrainingStatus(newTuneId);
+        
+        if (status === 'complete') {
+          clearInterval(statusInterval);
+          onTrainingComplete(newTuneId);
+        }
+        
+        // Update progress based on status
+        if (status === 'training') {
+          // Increment progress to simulate training progress
+          setProgress((prev) => {
+            const newProgress = Math.min(prev + 5, 90);
+            return newProgress;
+          });
+        } else if (status === 'complete') {
+          setProgress(100);
+        }
+      }, 3000);
+      
     } catch (error: any) {
       console.error("Training error:", error);
       toast.error(`Error during training: ${error.message}`);
+      setStatus('error');
     } finally {
       setIsTraining(false);
     }
   };
   
-  const checkTrainingStatus = async (id: string) => {
+  const checkTrainingStatus = async (id: string): Promise<string> => {
     try {
-      // In a real implementation, we would check the status with the API
-      // For now, we'll simulate a status check and return "complete"
-      setStatus('complete');
+      const { data, error } = await supabase.functions.invoke('astria', {
+        body: {
+          action: 'check-status',
+          tuneId: id
+        }
+      });
+      
+      if (error) {
+        throw new Error(`Error checking tune status: ${error.message}`);
+      }
+      
+      if (data && data.status) {
+        console.log("Tune status:", data.status);
+        setStatus(data.status);
+        
+        if (data.status === 'complete') {
+          setProgress(100);
+          toast.success("Training completed successfully!");
+        }
+        
+        return data.status;
+      }
+      
+      return 'pending';
     } catch (error) {
       console.error("Status check error:", error);
+      return 'error';
     }
   };
 
@@ -143,10 +192,6 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
           >
             Continue <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
-          
-          <div className="text-sm text-muted-foreground mt-6 text-center">
-            <p className="mt-2 text-xs text-orange-500">Note: Currently running in demo mode as the API connection is being configured.</p>
-          </div>
         </CardContent>
       </Card>
     </div>
