@@ -15,19 +15,32 @@ const Index = () => {
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
   const [tuneId, setTuneId] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   
   // Check authentication status
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setIsAuthenticated(!!session);
-      
-      // Set up auth state change listener
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      try {
+        setIsLoading(true);
+        
+        // Set up auth state change listener FIRST
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+          setIsAuthenticated(!!session);
+          setIsLoading(false);
+        });
+        
+        // THEN check for existing session
+        const { data: { session } } = await supabase.auth.getSession();
         setIsAuthenticated(!!session);
-      });
-      
-      return () => subscription.unsubscribe();
+        setIsLoading(false);
+        
+        return () => subscription.unsubscribe();
+      } catch (error) {
+        console.error("Authentication check error:", error);
+        toast.error("Error checking authentication status");
+        setIsAuthenticated(false);
+        setIsLoading(false);
+      }
     };
     
     checkAuth();
@@ -38,12 +51,13 @@ const Index = () => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin
+          redirectTo: window.location.href
         }
       });
       
       if (error) throw error;
     } catch (error: any) {
+      console.error("Sign in error:", error);
       toast.error(`Authentication error: ${error.message}`);
     }
   };
@@ -61,10 +75,15 @@ const Index = () => {
   };
 
   // Show loading state while checking auth
-  if (isAuthenticated === null) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center">
-        <p>Loading...</p>
+        <div className="animate-pulse flex space-x-2">
+          <div className="h-3 w-3 bg-brand-600 rounded-full"></div>
+          <div className="h-3 w-3 bg-brand-600 rounded-full"></div>
+          <div className="h-3 w-3 bg-brand-600 rounded-full"></div>
+        </div>
+        <p className="mt-4 text-muted-foreground">Loading...</p>
       </div>
     );
   }

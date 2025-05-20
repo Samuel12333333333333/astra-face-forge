@@ -22,6 +22,15 @@ serve(async (req) => {
   }
 
   try {
+    // Validate that the ASTRIA_API_KEY is set
+    if (!ASTRIA_API_KEY) {
+      console.error('ASTRIA_API_KEY not configured');
+      return new Response(
+        JSON.stringify({ error: "API key not configured. Please contact the administrator." }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
     const url = new URL(req.url);
     const action = url.pathname.split('/').pop();
     const authHeader = req.headers.get('Authorization');
@@ -39,7 +48,7 @@ serve(async (req) => {
     
     if (userError || !user) {
       return new Response(
-        JSON.stringify({ error: "Invalid token" }),
+        JSON.stringify({ error: "Invalid token", details: userError?.message }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -57,7 +66,7 @@ serve(async (req) => {
       return await checkTuneStatus(req, userId);
     } else {
       return new Response(
-        JSON.stringify({ error: "Invalid action" }),
+        JSON.stringify({ error: "Invalid action", action: action }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -72,7 +81,18 @@ serve(async (req) => {
 
 async function handleImageUpload(req: Request, userId: string) {
   try {
-    const formData = await req.formData();
+    // First check if we can parse the form data
+    let formData;
+    try {
+      formData = await req.formData();
+    } catch (formError) {
+      console.error('Form data parsing error:', formError);
+      return new Response(
+        JSON.stringify({ error: "Unable to parse form data", details: formError.message }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
     const image = formData.get('image') as File;
     
     if (!image) {
@@ -87,15 +107,40 @@ async function handleImageUpload(req: Request, userId: string) {
     astriaFormData.append('image', image);
     
     // Send to Astria
-    const response = await fetch('https://api.astria.ai/images/upload', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${ASTRIA_API_KEY}`
-      },
-      body: astriaFormData
-    });
+    let response;
+    try {
+      response = await fetch('https://api.astria.ai/images/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${ASTRIA_API_KEY}`
+        },
+        body: astriaFormData
+      });
+    } catch (fetchError) {
+      console.error('Astria API network error:', fetchError);
+      return new Response(
+        JSON.stringify({ error: "Network error connecting to Astria API", details: fetchError.message }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
-    const result = await response.json();
+    // Process the response
+    let result;
+    try {
+      result = await response.json();
+    } catch (jsonError) {
+      console.error('JSON parsing error:', jsonError);
+      const responseText = await response.text();
+      return new Response(
+        JSON.stringify({ 
+          error: "Failed to parse Astria API response", 
+          details: jsonError.message,
+          responseStatus: response.status,
+          responseText: responseText.substring(0, 500) // First 500 chars only to avoid huge logs
+        }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     if (!response.ok) {
       throw new Error(`Astria API error: ${result.error || response.statusText}`);
@@ -116,7 +161,18 @@ async function handleImageUpload(req: Request, userId: string) {
 
 async function createTune(req: Request, userId: string) {
   try {
-    const { imageIds, callbackUrl } = await req.json();
+    let requestBody;
+    try {
+      requestBody = await req.json();
+    } catch (jsonError) {
+      console.error('JSON parsing error:', jsonError);
+      return new Response(
+        JSON.stringify({ error: "Invalid JSON in request body" }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    const { imageIds, callbackUrl } = requestBody;
     
     if (!imageIds || !Array.isArray(imageIds) || imageIds.length === 0) {
       return new Response(
@@ -126,22 +182,46 @@ async function createTune(req: Request, userId: string) {
     }
     
     // Create tune on Astria
-    const response = await fetch('https://api.astria.ai/tunes', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${ASTRIA_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        title: `headshot_user_${userId}`,
-        instance_prompt: `photo of sks${userId} person`,
-        class_prompt: "person",
-        images: imageIds,
-        callback_url: callbackUrl || null
-      })
-    });
+    let response;
+    try {
+      response = await fetch('https://api.astria.ai/tunes', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${ASTRIA_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          title: `headshot_user_${userId}`,
+          instance_prompt: `photo of sks${userId} person`,
+          class_prompt: "person",
+          images: imageIds,
+          callback_url: callbackUrl || null
+        })
+      });
+    } catch (fetchError) {
+      console.error('Astria API network error:', fetchError);
+      return new Response(
+        JSON.stringify({ error: "Network error connecting to Astria API", details: fetchError.message }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
-    const result = await response.json();
+    // Process the response
+    let result;
+    try {
+      result = await response.json();
+    } catch (jsonError) {
+      console.error('JSON parsing error:', jsonError);
+      const responseText = await response.text();
+      return new Response(
+        JSON.stringify({ 
+          error: "Failed to parse Astria API response", 
+          details: jsonError.message,
+          responseText: responseText.substring(0, 500) // First 500 chars only
+        }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     if (!response.ok) {
       throw new Error(`Astria API error: ${result.error || response.statusText}`);

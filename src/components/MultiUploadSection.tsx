@@ -44,41 +44,65 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
     const imageIds: string[] = [];
 
     try {
-      for (let i = 0; i < files.length; i++) {
-        // Create a FormData object for the file
-        const formData = new FormData();
-        formData.append('image', files[i]);
-        
-        // Get the auth token from Supabase
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-        
-        if (!token) {
-          throw new Error("Authentication required");
-        }
-
-        // Make the API request
-        const response = await fetch('/api/astria/upload-images', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          },
-          body: formData
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Failed to upload image ${i+1}: ${errorText}`);
-        }
-
-        const result = await response.json();
-        imageIds.push(result.id);
-        setUploadedCount(prev => prev + 1);
+      // Get the auth token from Supabase
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      
+      if (!token) {
+        throw new Error("Authentication required");
       }
 
-      setUploadedImageIds(imageIds);
-      onImagesUploaded(imageIds);
-      toast.success("All images uploaded successfully!");
+      for (let i = 0; i < files.length; i++) {
+        try {
+          // Create a FormData object for the file
+          const formData = new FormData();
+          formData.append('image', files[i]);
+          
+          // Make the API request
+          const response = await fetch('/api/astria/upload-images', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            },
+            body: formData
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Upload response not ok: ${response.status} ${errorText}`);
+            throw new Error(`Failed to upload image ${i+1}: ${response.status} ${errorText}`);
+          }
+
+          // Safely parse the JSON response
+          const text = await response.text();
+          let result;
+          
+          try {
+            result = JSON.parse(text);
+          } catch (parseError) {
+            console.error("JSON parse error:", parseError, "Raw response:", text);
+            throw new Error(`Invalid response format for image ${i+1}`);
+          }
+          
+          if (result && result.id) {
+            imageIds.push(result.id);
+            setUploadedCount(prev => prev + 1);
+          } else {
+            throw new Error(`Missing ID in response for image ${i+1}`);
+          }
+        } catch (uploadError) {
+          console.error("Upload error for image", i, uploadError);
+          toast.error(`Error uploading image ${i+1}: ${uploadError.message}`);
+        }
+      }
+
+      if (imageIds.length > 0) {
+        setUploadedImageIds(imageIds);
+        onImagesUploaded(imageIds);
+        toast.success(`Successfully uploaded ${imageIds.length} out of ${files.length} images`);
+      } else {
+        toast.error("Failed to upload any images. Please try again.");
+      }
     } catch (error: any) {
       console.error("Upload error:", error);
       toast.error(`Error uploading images: ${error.message}`);
