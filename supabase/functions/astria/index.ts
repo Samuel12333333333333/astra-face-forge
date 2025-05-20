@@ -90,24 +90,49 @@ async function handleImageUpload(req: Request, userId: string) {
   try {
     console.log("Processing image upload for user:", userId);
     
-    // Get image data from request
-    const imageBlob = await req.blob();
-    const contentType = req.headers.get('Content-Type') || 'image/jpeg';
+    // Get image data from request as JSON now, not blob
+    const requestData = await req.json();
     
-    if (!imageBlob || imageBlob.size === 0) {
-      console.error("Empty image blob received");
+    // Check if we have the required data
+    if (!requestData || !requestData.image) {
+      console.error("No image data in request");
       return new Response(
-        JSON.stringify({ error: "No image provided or image is empty" }),
+        JSON.stringify({ error: "No image data provided" }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
-    console.log(`Received image: ${contentType}, size: ${imageBlob.size} bytes`);
+    const { image: base64Data, filename, contentType } = requestData;
+    
+    // Validate the base64 data
+    if (!base64Data || typeof base64Data !== 'string' || !base64Data.includes('base64')) {
+      console.error("Invalid image data format");
+      return new Response(
+        JSON.stringify({ error: "Invalid image data format" }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    console.log(`Received base64 image data of length: ${base64Data.length}`);
+    
+    // Convert base64 to blob
+    const base64Response = await fetch(base64Data);
+    const imageBlob = await base64Response.blob();
+    
+    if (!imageBlob || imageBlob.size === 0) {
+      console.error("Empty image blob after conversion");
+      return new Response(
+        JSON.stringify({ error: "Image data conversion failed" }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    console.log(`Converted to blob: ${contentType || imageBlob.type}, size: ${imageBlob.size} bytes`);
     
     // Create FormData for Astria API
     const formData = new FormData();
-    const fileName = `user_${userId}_${Date.now()}.${contentType.split('/')[1] || 'jpg'}`;
-    const imageFile = new File([imageBlob], fileName, { type: contentType });
+    const actualFileName = filename || `user_${userId}_${Date.now()}.${(contentType || 'image/jpeg').split('/')[1] || 'jpg'}`;
+    const imageFile = new File([imageBlob], actualFileName, { type: contentType || imageBlob.type || 'image/jpeg' });
     formData.append('image', imageFile);
     
     // Send to Astria API

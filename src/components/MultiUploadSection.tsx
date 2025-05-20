@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,7 +32,7 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
       return;
     }
 
-    if (files.length < 3) { // Lower minimum requirement for testing
+    if (files.length < 3) { 
       toast.error("Please upload at least 3 images for best results");
       return;
     }
@@ -49,12 +48,21 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
         const file = files[i];
         console.log(`Uploading image ${i+1}/${files.length}: ${file.name} (${file.type}, ${file.size} bytes)`);
         
+        if (!file || file.size === 0) {
+          console.error(`Skipping empty file at index ${i}`);
+          continue;
+        }
+        
         try {
-          // Direct binary upload of each file
+          // Convert the file to base64 to ensure proper transmission
+          const base64Data = await fileToBase64(file);
+          
+          // Send the image data as a JSON payload rather than raw binary
           const { data, error } = await supabase.functions.invoke('astria/upload-images', {
-            body: await file.arrayBuffer(),
-            headers: {
-              'Content-Type': file.type || 'image/jpeg',
+            body: { 
+              image: base64Data,
+              filename: file.name,
+              contentType: file.type || 'image/jpeg'
             }
           });
           
@@ -91,6 +99,21 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
     } finally {
       setUploading(false);
     }
+  };
+  
+  // Helper function to convert File object to base64 string
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        // Remove the data:image/jpeg;base64, prefix to get just the base64 string
+        const base64String = reader.result as string;
+        // Keep the data URL format as is - the API can handle it
+        resolve(base64String);
+      };
+      reader.onerror = (error) => reject(error);
+    });
   };
 
   return (
