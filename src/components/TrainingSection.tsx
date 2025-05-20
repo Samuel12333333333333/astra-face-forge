@@ -38,26 +38,24 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
         throw new Error("Authentication required");
       }
       
-      // Create tune
-      const response = await fetch('/api/astria/create-tune', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
+      console.log("Starting training with image IDs:", imageIds);
+      
+      // Create tune using Supabase Functions.invoke
+      const { data, error } = await supabase.functions.invoke('astria/create-tune', {
+        body: {
           imageIds: imageIds,
           callbackUrl: window.location.origin + '/api/webhook/astria-callback'
-        })
+        }
       });
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to start training: ${errorText}`);
+      if (error) {
+        console.error("Supabase function error:", error);
+        throw new Error(`Failed to start training: ${error.message}`);
       }
       
-      const result = await response.json();
-      setTuneId(result.id);
+      console.log("Training response:", data);
+      
+      setTuneId(data.id);
       setStatus("training");
       setProgress(15);
       toast.success("Training started successfully!");
@@ -75,39 +73,30 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
   // Check training status
   const checkTrainingStatus = async () => {
     try {
-      // Get the auth token from Supabase
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
+      console.log("Checking training status...");
       
-      if (!token) {
-        throw new Error("Authentication required");
+      const { data, error } = await supabase.functions.invoke('astria/check-status');
+      
+      if (error) {
+        console.error("Status check error:", error);
+        throw new Error(`Failed to check training status: ${error.message}`);
       }
       
-      const response = await fetch('/api/astria/check-status', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      console.log("Status check response:", data);
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to check training status: ${errorText}`);
-      }
-      
-      const result = await response.json();
-      setStatus(result.status);
+      setStatus(data.status);
       
       // Update progress based on status
-      if (result.status === "training") {
+      if (data.status === "training") {
         setProgress(prev => Math.min(prev + 5, 70)); // Slowly increase progress while training
-      } else if (result.status === "completed") {
+      } else if (data.status === "completed") {
         setProgress(100);
         if (statusCheckInterval) {
           clearInterval(statusCheckInterval);
         }
-        onTrainingComplete(result.id);
+        onTrainingComplete(data.id);
         toast.success("Training completed successfully!");
-      } else if (result.status === "failed") {
+      } else if (data.status === "failed") {
         setProgress(0);
         if (statusCheckInterval) {
           clearInterval(statusCheckInterval);
@@ -115,7 +104,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
         toast.error("Training failed. Please try again.");
         setIsTraining(false);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Status check error:", error);
     }
   };

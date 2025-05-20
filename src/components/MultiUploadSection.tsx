@@ -52,45 +52,36 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
         throw new Error("Authentication required");
       }
 
+      console.log("Starting upload of", files.length, "images");
+      
       for (let i = 0; i < files.length; i++) {
         try {
           // Create a FormData object for the file
           const formData = new FormData();
           formData.append('image', files[i]);
           
-          // Make the API request
-          const response = await fetch('/api/astria/upload-images', {
-            method: 'POST',
+          // Make the API request using Supabase Functions.invoke
+          const { data, error } = await supabase.functions.invoke('astria/upload-images', {
+            body: formData,
             headers: {
               'Authorization': `Bearer ${token}`
-            },
-            body: formData
+            }
           });
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`Upload response not ok: ${response.status} ${errorText}`);
-            throw new Error(`Failed to upload image ${i+1}: ${response.status} ${errorText}`);
-          }
-
-          // Safely parse the JSON response
-          const text = await response.text();
-          let result;
           
-          try {
-            result = JSON.parse(text);
-          } catch (parseError) {
-            console.error("JSON parse error:", parseError, "Raw response:", text);
-            throw new Error(`Invalid response format for image ${i+1}`);
+          if (error) {
+            console.error("Supabase function error:", error);
+            throw new Error(`Failed to upload image ${i+1}: ${error.message}`);
           }
           
-          if (result && result.id) {
-            imageIds.push(result.id);
+          if (data && data.id) {
+            imageIds.push(data.id);
             setUploadedCount(prev => prev + 1);
+            console.log(`Successfully uploaded image ${i+1}, got ID: ${data.id}`);
           } else {
+            console.error("No ID in response:", data);
             throw new Error(`Missing ID in response for image ${i+1}`);
           }
-        } catch (uploadError) {
+        } catch (uploadError: any) {
           console.error("Upload error for image", i, uploadError);
           toast.error(`Error uploading image ${i+1}: ${uploadError.message}`);
         }
