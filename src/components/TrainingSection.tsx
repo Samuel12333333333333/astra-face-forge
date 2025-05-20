@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
+import { supabase } from "@/integrations/supabase/client";
 
 interface TrainingSectionProps {
   imageIds: string[];
@@ -29,12 +30,20 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
     setProgress(5);
     
     try {
+      // Get the auth token from Supabase
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      
+      if (!token) {
+        throw new Error("Authentication required");
+      }
+      
       // Create tune
       const response = await fetch('/api/astria/create-tune', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('supabase.auth.token')}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           imageIds: imageIds,
@@ -43,7 +52,8 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
       });
       
       if (!response.ok) {
-        throw new Error("Failed to start training");
+        const errorText = await response.text();
+        throw new Error(`Failed to start training: ${errorText}`);
       }
       
       const result = await response.json();
@@ -55,9 +65,9 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
       // Set up interval to check status
       const interval = setInterval(checkTrainingStatus, 10000); // Check every 10 seconds
       setStatusCheckInterval(interval);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Training error:", error);
-      toast.error("Error starting training. Please try again.");
+      toast.error(`Error starting training: ${error.message}`);
       setIsTraining(false);
     }
   };
@@ -65,14 +75,23 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
   // Check training status
   const checkTrainingStatus = async () => {
     try {
+      // Get the auth token from Supabase
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      
+      if (!token) {
+        throw new Error("Authentication required");
+      }
+      
       const response = await fetch('/api/astria/check-status', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('supabase.auth.token')}`
+          'Authorization': `Bearer ${token}`
         }
       });
       
       if (!response.ok) {
-        throw new Error("Failed to check training status");
+        const errorText = await response.text();
+        throw new Error(`Failed to check training status: ${errorText}`);
       }
       
       const result = await response.json();

@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface MultiUploadSectionProps {
   onImagesUploaded: (imageIds: string[]) => void;
@@ -44,19 +45,30 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
 
     try {
       for (let i = 0; i < files.length; i++) {
+        // Create a FormData object for the file
         const formData = new FormData();
         formData.append('image', files[i]);
+        
+        // Get the auth token from Supabase
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        
+        if (!token) {
+          throw new Error("Authentication required");
+        }
 
+        // Make the API request
         const response = await fetch('/api/astria/upload-images', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('supabase.auth.token')}`
+            'Authorization': `Bearer ${token}`
           },
           body: formData
         });
 
         if (!response.ok) {
-          throw new Error(`Failed to upload image ${i+1}`);
+          const errorText = await response.text();
+          throw new Error(`Failed to upload image ${i+1}: ${errorText}`);
         }
 
         const result = await response.json();
@@ -67,9 +79,9 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
       setUploadedImageIds(imageIds);
       onImagesUploaded(imageIds);
       toast.success("All images uploaded successfully!");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Upload error:", error);
-      toast.error("Error uploading images. Please try again.");
+      toast.error(`Error uploading images: ${error.message}`);
     } finally {
       setUploading(false);
     }

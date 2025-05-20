@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Download, Loader2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PreviewSectionProps {
   selectedStyle: string | null;
@@ -33,6 +34,14 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
     setSelectedImage(null);
     
     try {
+      // Get the auth token from Supabase
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      
+      if (!token) {
+        throw new Error("Authentication required");
+      }
+      
       // Set up the prompt based on selected style
       let prompt = "professional headshot";
       
@@ -41,7 +50,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('supabase.auth.token')}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           prompt: prompt,
@@ -51,7 +60,8 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
       });
       
       if (!response.ok) {
-        throw new Error("Failed to generate headshots");
+        const errorText = await response.text();
+        throw new Error(`Failed to generate headshots: ${errorText}`);
       }
       
       const result = await response.json();
@@ -62,9 +72,9 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
       } else {
         toast.error("No images were generated");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Generation error:", error);
-      toast.error("Error generating headshots. Please try again.");
+      toast.error(`Error generating headshots: ${error.message}`);
     } finally {
       setIsGenerating(false);
     }
@@ -97,7 +107,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
   return (
     <div className="w-full max-w-4xl mx-auto">
       <div className="mb-8 text-center">
-        <h2 className="mb-2">Your Generated Headshots</h2>
+        <h2 className="text-2xl font-bold mb-2">Your Generated Headshots</h2>
         <p className="text-muted-foreground">
           {isGenerating 
             ? "We're creating your professional headshots..." 
