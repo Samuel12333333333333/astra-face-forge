@@ -33,56 +33,50 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
       return;
     }
 
-    if (files.length < 10) {
-      toast.error("Please upload at least 10 images for best results");
+    if (files.length < 5) { // Reduce minimum requirement for testing
+      toast.error("Please upload at least 5 images for best results");
       return;
     }
 
     setUploading(true);
     setUploadedCount(0);
-    
     const imageIds: string[] = [];
 
     try {
-      // Get the auth token from Supabase
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      
-      if (!token) {
-        throw new Error("Authentication required");
-      }
-
       console.log("Starting upload of", files.length, "images");
       
       for (let i = 0; i < files.length; i++) {
         try {
-          // Create a FormData object for the file
-          const formData = new FormData();
-          formData.append('image', files[i]);
+          console.log(`Uploading image ${i+1}/${files.length}: ${files[i].name}`);
           
-          // Make the API request using Supabase Functions.invoke properly with binary content
+          // Use proper content type from the file
+          const contentType = files[i].type || 'image/jpeg';
+          
+          // Create form data for proper binary upload
           const { data, error } = await supabase.functions.invoke('astria/upload-images', {
-            body: files[i], // Send the file directly as binary
+            body: await files[i].arrayBuffer(),
             headers: {
-              'Content-Type': files[i].type,
+              'Content-Type': contentType,
             }
           });
           
           if (error) {
-            console.error("Supabase function error:", error);
+            console.error(`Error uploading image ${i+1}:`, error);
             throw new Error(`Failed to upload image ${i+1}: ${error.message}`);
           }
+          
+          console.log(`Image ${i+1} upload response:`, data);
           
           if (data && data.id) {
             imageIds.push(data.id);
             setUploadedCount(prev => prev + 1);
             console.log(`Successfully uploaded image ${i+1}, got ID: ${data.id}`);
           } else {
-            console.error("No ID in response:", data);
+            console.error(`No ID in response for image ${i+1}:`, data);
             throw new Error(`Missing ID in response for image ${i+1}`);
           }
         } catch (uploadError: any) {
-          console.error("Upload error for image", i, uploadError);
+          console.error(`Upload error for image ${i}:`, uploadError);
           toast.error(`Error uploading image ${i+1}: ${uploadError.message}`);
         }
       }
@@ -120,7 +114,7 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
                 <p className="mb-2 text-sm text-muted-foreground">
                   <span className="font-semibold">Click to upload</span> or drag and drop
                 </p>
-                <p className="text-xs text-muted-foreground">Upload 10-20 selfies (JPG, PNG)</p>
+                <p className="text-xs text-muted-foreground">Upload 5-20 selfies (JPG, PNG)</p>
               </div>
               <input 
                 id="multi-file-input" 
@@ -168,7 +162,7 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
           </div>
           
           <div className="text-sm text-muted-foreground mt-4 text-center">
-            <p>For best results, upload 10-20 clear photos with good lighting and different facial expressions.</p>
+            <p>For best results, upload 5-20 clear photos with good lighting and different facial expressions.</p>
           </div>
         </CardContent>
       </Card>

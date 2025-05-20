@@ -24,17 +24,37 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
 
   // Generate headshots on component mount
   useEffect(() => {
-    if (tuneId) {
-      generateHeadshots();
+    console.log("PreviewSection mounted with tuneId:", tuneId);
+    console.log("PreviewSection mounted with style:", selectedStyle);
+    
+    // Check if we have a tuneId, if not try to recover from localStorage
+    let currentTuneId = tuneId;
+    if (!currentTuneId) {
+      currentTuneId = localStorage.getItem('currentTuneId');
+      console.log("Recovered tuneId from localStorage:", currentTuneId);
     }
-  }, [tuneId]);
+    
+    if (currentTuneId) {
+      console.log("Generating headshots with tuneId:", currentTuneId);
+      generateHeadshots(currentTuneId);
+    } else {
+      console.error("No tuneId available for headshot generation");
+      toast.error("No model ID available. Please try again.");
+    }
+  }, []);
 
-  const generateHeadshots = async () => {
+  const generateHeadshots = async (currentTuneId: string = tuneId || '') => {
+    if (!currentTuneId) {
+      console.error("No tuneId provided for generateHeadshots");
+      toast.error("No model ID available. Please try again.");
+      return;
+    }
+    
     setIsGenerating(true);
     setSelectedImage(null);
     
     try {
-      console.log("Starting headshot generation with tune ID:", tuneId);
+      console.log("Starting headshot generation with tune ID:", currentTuneId);
       console.log("Selected style:", selectedStyle);
       
       // Set up the prompt based on selected style
@@ -45,7 +65,8 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
         body: { 
           prompt, 
           numImages: 4, 
-          styleType: selectedStyle 
+          styleType: selectedStyle,
+          tuneId: currentTuneId // Explicitly pass tuneId in the request
         }
       });
       
@@ -62,7 +83,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
         console.log("Generated image URLs:", imageUrls);
       } else {
         console.error("Unexpected response format:", data);
-        toast.error("No images were generated");
+        toast.error("No images were generated. Please try again.");
       }
     } catch (error: any) {
       console.error("Generation error:", error);
@@ -93,6 +114,19 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
     } catch (error) {
       console.error("Download error:", error);
       toast.error("Failed to download image");
+    }
+  };
+
+  const handleRegenerate = () => {
+    let currentTuneId = tuneId;
+    if (!currentTuneId) {
+      currentTuneId = localStorage.getItem('currentTuneId');
+    }
+    
+    if (currentTuneId) {
+      generateHeadshots(currentTuneId);
+    } else {
+      toast.error("No model ID available. Please try again.");
     }
   };
 
@@ -148,7 +182,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
               <Button variant="ghost" onClick={onBack}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
-              <Button variant="outline" onClick={generateHeadshots}>
+              <Button variant="outline" onClick={handleRegenerate}>
                 <RefreshCw className="mr-2 h-4 w-4" /> Regenerate
               </Button>
             </div>
@@ -158,6 +192,14 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
           </div>
         </>
       )}
+
+      {/* Debug info */}
+      <div className="mt-8 p-4 border border-gray-200 rounded text-xs text-gray-500">
+        <p>Debug Info:</p>
+        <p>TuneId: {tuneId || localStorage.getItem('currentTuneId') || 'Not available'}</p>
+        <p>Style: {selectedStyle || 'Not selected'}</p>
+        <p>Generated Images: {generatedImages.length}</p>
+      </div>
     </div>
   );
 };

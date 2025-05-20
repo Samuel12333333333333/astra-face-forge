@@ -45,6 +45,28 @@ const Index = () => {
     
     checkAuth();
   }, []);
+  
+  // Try to recover from localStorage if coming back to the app
+  useEffect(() => {
+    const storedTuneId = localStorage.getItem('currentTuneId');
+    const storedStyle = localStorage.getItem('selectedStyle');
+    const storedStep = localStorage.getItem('currentStep') as "upload" | "training" | "style" | "preview" | null;
+    
+    if (storedTuneId) {
+      console.log("Recovered tuneId from localStorage:", storedTuneId);
+      setTuneId(storedTuneId);
+    }
+    
+    if (storedStyle) {
+      console.log("Recovered style from localStorage:", storedStyle);
+      setSelectedStyle(storedStyle);
+    }
+    
+    if (storedStep && storedStep !== "upload") {
+      console.log("Recovered step from localStorage:", storedStep);
+      setCurrentStep(storedStep);
+    }
+  }, []);
 
   const handleSignIn = async () => {
     try {
@@ -67,11 +89,23 @@ const Index = () => {
   };
 
   const handleTrainingComplete = (generatedTuneId: string) => {
+    console.log("Training complete with tuneId:", generatedTuneId);
     setTuneId(generatedTuneId);
+    // Store in localStorage for persistence
+    localStorage.setItem('currentTuneId', generatedTuneId);
   };
 
   const handleStyleSelected = (styleId: string) => {
+    console.log("Selected style:", styleId);
     setSelectedStyle(styleId);
+    // Store in localStorage for persistence
+    localStorage.setItem('selectedStyle', styleId);
+  };
+  
+  const handleStepChange = (step: "upload" | "training" | "style" | "preview") => {
+    setCurrentStep(step);
+    // Store current step in localStorage
+    localStorage.setItem('currentStep', step);
   };
 
   // Show loading state while checking auth
@@ -125,7 +159,7 @@ const Index = () => {
             {currentStep === "upload" && (
               <MultiUploadSection 
                 onImagesUploaded={handleImagesUploaded}
-                onContinue={() => setCurrentStep("training")}
+                onContinue={() => handleStepChange("training")}
               />
             )}
             
@@ -133,15 +167,15 @@ const Index = () => {
               <TrainingSection 
                 imageIds={uploadedImageIds}
                 onTrainingComplete={handleTrainingComplete}
-                onContinue={() => setCurrentStep("style")}
+                onContinue={() => handleStepChange("style")}
               />
             )}
             
             {currentStep === "style" && (
               <StyleSelector 
                 onStyleSelected={handleStyleSelected}
-                onBack={() => setCurrentStep("training")}
-                onContinue={() => setCurrentStep("preview")}
+                onBack={() => handleStepChange("training")}
+                onContinue={() => handleStepChange("preview")}
               />
             )}
             
@@ -149,11 +183,35 @@ const Index = () => {
               <PreviewSection 
                 selectedStyle={selectedStyle}
                 tuneId={tuneId}
-                onBack={() => setCurrentStep("style")}
+                onBack={() => handleStepChange("style")}
               />
             )}
           </>
         )}
+        
+        {/* Debug panel */}
+        <div className="mt-8 p-4 border border-gray-200 rounded text-xs text-gray-500">
+          <p>Debug Info:</p>
+          <p>Current Step: {currentStep}</p>
+          <p>TuneId: {tuneId || localStorage.getItem('currentTuneId') || 'Not available'}</p>
+          <p>Selected Style: {selectedStyle || localStorage.getItem('selectedStyle') || 'Not selected'}</p>
+          <p>Uploaded Image IDs: {uploadedImageIds.length > 0 ? `${uploadedImageIds.length} images` : 'None'}</p>
+          <button 
+            className="text-xs text-red-500 mt-2 underline"
+            onClick={() => {
+              localStorage.removeItem('currentTuneId');
+              localStorage.removeItem('selectedStyle');
+              localStorage.removeItem('currentStep');
+              setTuneId(null);
+              setSelectedStyle(null);
+              setCurrentStep("upload");
+              setUploadedImageIds([]);
+              toast.success("Debug: App state reset");
+            }}
+          >
+            Reset App State
+          </button>
+        </div>
       </main>
       
       <footer className="border-t py-6">

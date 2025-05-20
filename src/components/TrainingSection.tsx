@@ -56,6 +56,9 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
         // Set up interval to check status
         const interval = setInterval(checkTrainingStatus, 10000); // Check every 10 seconds
         setStatusCheckInterval(interval);
+
+        // Store tune ID in localStorage as a fallback
+        localStorage.setItem('currentTuneId', data.id);
       } else {
         console.error("Missing tuneId in response:", data);
         throw new Error("Failed to get tune ID from response");
@@ -70,15 +73,24 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
   // Check training status
   const checkTrainingStatus = async () => {
     try {
-      if (!tuneId) {
-        console.error("No tuneId available for status check");
-        return;
+      let currentTuneId = tuneId;
+      
+      if (!currentTuneId) {
+        // Try to recover from localStorage as fallback
+        currentTuneId = localStorage.getItem('currentTuneId');
+        if (currentTuneId) {
+          console.log("Recovered tuneId from localStorage:", currentTuneId);
+          setTuneId(currentTuneId);
+        } else {
+          console.error("No tuneId available for status check");
+          return;
+        }
       }
 
-      console.log("Checking training status for tune:", tuneId);
+      console.log("Checking training status for tune:", currentTuneId);
       
       const { data, error } = await supabase.functions.invoke('astria/check-status', {
-        body: { tuneId: tuneId }
+        body: { tuneId: currentTuneId }
       });
       
       if (error) {
@@ -105,7 +117,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
         }
         
         // Ensure we have a valid tuneId to pass
-        const idToPass = data.id || tuneId;
+        const idToPass = data.id || currentTuneId;
         console.log("Training completed! Tune ID:", idToPass);
         onTrainingComplete(idToPass);
         toast.success("Training completed successfully!");
@@ -130,6 +142,21 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
       }
     };
   }, [statusCheckInterval]);
+
+  // For debugging: If we have localStorage tuneId but no state tuneId
+  useEffect(() => {
+    if (!tuneId) {
+      const storedTuneId = localStorage.getItem('currentTuneId');
+      if (storedTuneId) {
+        console.log("Found stored tuneId:", storedTuneId);
+        setTuneId(storedTuneId);
+        setIsTraining(true);
+        setStatus("completed");
+        setProgress(100);
+        onTrainingComplete(storedTuneId);
+      }
+    }
+  }, []);
 
   return (
     <div className="w-full max-w-md mx-auto">
