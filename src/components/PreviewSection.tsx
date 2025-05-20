@@ -21,31 +21,29 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [effectiveTuneId, setEffectiveTuneId] = useState<string | null>(null);
 
-  // Generate headshots on component mount
   useEffect(() => {
-    console.log("PreviewSection mounted with tuneId:", tuneId);
-    console.log("PreviewSection mounted with style:", selectedStyle);
-    
-    // Check if we have a tuneId, if not try to recover from localStorage
+    // First, try to use the tuneId from props
     let currentTuneId = tuneId;
+    
+    // If not available, try to get from localStorage
     if (!currentTuneId) {
       currentTuneId = localStorage.getItem('currentTuneId');
-      console.log("Recovered tuneId from localStorage:", currentTuneId);
+      console.log("Retrieved tuneId from localStorage:", currentTuneId);
     }
     
     if (currentTuneId) {
-      console.log("Generating headshots with tuneId:", currentTuneId);
+      setEffectiveTuneId(currentTuneId);
       generateHeadshots(currentTuneId);
     } else {
       console.error("No tuneId available for headshot generation");
-      toast.error("No model ID available. Please try again.");
+      toast.error("No model ID available. Please create a model first.");
     }
-  }, []);
+  }, [tuneId]);
 
-  const generateHeadshots = async (currentTuneId: string = tuneId || '') => {
+  const generateHeadshots = async (currentTuneId: string) => {
     if (!currentTuneId) {
-      console.error("No tuneId provided for generateHeadshots");
       toast.error("No model ID available. Please try again.");
       return;
     }
@@ -65,7 +63,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
         body: { 
           prompt, 
           numImages: 4, 
-          styleType: selectedStyle,
+          styleType: selectedStyle || 'professional',
           tuneId: currentTuneId // Explicitly pass tuneId in the request
         }
       });
@@ -75,15 +73,21 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
         throw new Error(`Failed to generate headshots: ${error.message}`);
       }
       
-      console.log("Generation response:", data);
+      console.log("Generation response received");
       
       if (data && data.images && Array.isArray(data.images)) {
         const imageUrls = data.images.map((img: any) => img.url);
         setGeneratedImages(imageUrls);
         console.log("Generated image URLs:", imageUrls);
+        
+        if (imageUrls.length > 0) {
+          toast.success(`Successfully generated ${imageUrls.length} headshots!`);
+        } else {
+          toast.warning("No images were generated. Try again with different settings.");
+        }
       } else {
         console.error("Unexpected response format:", data);
-        toast.error("No images were generated. Please try again.");
+        toast.error("Failed to generate headshots. Please try again.");
       }
     } catch (error: any) {
       console.error("Generation error:", error);
@@ -118,13 +122,8 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
   };
 
   const handleRegenerate = () => {
-    let currentTuneId = tuneId;
-    if (!currentTuneId) {
-      currentTuneId = localStorage.getItem('currentTuneId');
-    }
-    
-    if (currentTuneId) {
-      generateHeadshots(currentTuneId);
+    if (effectiveTuneId) {
+      generateHeadshots(effectiveTuneId);
     } else {
       toast.error("No model ID available. Please try again.");
     }
@@ -196,7 +195,9 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
       {/* Debug info */}
       <div className="mt-8 p-4 border border-gray-200 rounded text-xs text-gray-500">
         <p>Debug Info:</p>
-        <p>TuneId: {tuneId || localStorage.getItem('currentTuneId') || 'Not available'}</p>
+        <p>TuneId from props: {tuneId || 'Not provided'}</p>
+        <p>TuneId from localStorage: {localStorage.getItem('currentTuneId') || 'Not available'}</p>
+        <p>Effective TuneId: {effectiveTuneId || 'None'}</p>
         <p>Style: {selectedStyle || 'Not selected'}</p>
         <p>Generated Images: {generatedImages.length}</p>
       </div>

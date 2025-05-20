@@ -16,30 +16,30 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 const ASTRIA_API_KEY = Deno.env.get('ASTRIA_API_KEY')!;
 
 serve(async (req) => {
-  // Handle CORS preflight requests
+  // CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Validate that the ASTRIA_API_KEY is set
+    // Validate API key exists
     if (!ASTRIA_API_KEY) {
       console.error('ASTRIA_API_KEY not configured');
       return new Response(
-        JSON.stringify({ error: "API key not configured. Please contact the administrator." }),
+        JSON.stringify({ error: "API key not configured" }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
     const url = new URL(req.url);
     const pathParts = url.pathname.split('/');
-    const action = pathParts[pathParts.length - 1]; // Get the last part of the path
+    const action = pathParts[pathParts.length - 1]; 
     
     console.log("Request path:", url.pathname);
     console.log("Action identified:", action);
     
+    // Authentication check
     const authHeader = req.headers.get('Authorization');
-    
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
@@ -47,7 +47,6 @@ serve(async (req) => {
       );
     }
 
-    // Get user ID from JWT
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
@@ -62,20 +61,21 @@ serve(async (req) => {
     console.log("User ID:", userId);
     console.log("Processing action:", action);
     
-    // Process based on action
-    if (action === 'upload-images') {
-      return await handleImageUpload(req, userId);
-    } else if (action === 'create-tune') {
-      return await createTune(req, userId);
-    } else if (action === 'generate-headshots') {
-      return await generateHeadshots(req, userId);
-    } else if (action === 'check-status') {
-      return await checkTuneStatus(req, userId);
-    } else {
-      return new Response(
-        JSON.stringify({ error: "Invalid action", action: action }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Route requests based on action
+    switch(action) {
+      case 'upload-images':
+        return await handleImageUpload(req, userId);
+      case 'create-tune':
+        return await createTune(req, userId);
+      case 'generate-headshots':
+        return await generateHeadshots(req, userId);
+      case 'check-status':
+        return await checkTuneStatus(req, userId);
+      default:
+        return new Response(
+          JSON.stringify({ error: "Invalid action", action }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
     }
   } catch (error) {
     console.error('Error processing request:', error);
@@ -88,13 +88,14 @@ serve(async (req) => {
 
 async function handleImageUpload(req: Request, userId: string) {
   try {
-    console.log("Processing image upload");
+    console.log("Processing image upload for user:", userId);
     
-    // Get the image file from the request body
+    // Get image data from request
     const imageBlob = await req.blob();
     const contentType = req.headers.get('Content-Type') || 'image/jpeg';
     
     if (!imageBlob || imageBlob.size === 0) {
+      console.error("Empty image blob received");
       return new Response(
         JSON.stringify({ error: "No image provided or image is empty" }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -103,59 +104,37 @@ async function handleImageUpload(req: Request, userId: string) {
     
     console.log(`Received image: ${contentType}, size: ${imageBlob.size} bytes`);
     
-    // Build FormData for Astria API
-    const astriaFormData = new FormData();
+    // Create FormData for Astria API
+    const formData = new FormData();
+    const fileName = `user_${userId}_${Date.now()}.${contentType.split('/')[1] || 'jpg'}`;
+    const imageFile = new File([imageBlob], fileName, { type: contentType });
+    formData.append('image', imageFile);
     
-    // Convert blob to File with a proper name
-    const imageFile = new File(
-      [imageBlob], 
-      `user_${userId}_${Date.now()}.${contentType.split('/')[1] || 'jpg'}`,
-      { type: contentType }
-    );
-    
-    astriaFormData.append('image', imageFile);
-    
-    // Send to Astria
+    // Send to Astria API
     console.log("Sending image to Astria API...");
-    let response;
-    try {
-      response = await fetch('https://api.astria.ai/images/upload', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${ASTRIA_API_KEY}`
-        },
-        body: astriaFormData
-      });
-    } catch (fetchError) {
-      console.error('Astria API network error:', fetchError);
-      return new Response(
-        JSON.stringify({ error: "Network error connecting to Astria API", details: fetchError.message }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
-    // Process the response
-    let result;
-    try {
-      result = await response.json();
-      console.log("Astria API response:", JSON.stringify(result));
-    } catch (jsonError) {
-      console.error('JSON parsing error:', jsonError);
-      const responseText = await response.text();
-      return new Response(
-        JSON.stringify({ 
-          error: "Failed to parse Astria API response", 
-          details: jsonError.message,
-          responseStatus: response.status,
-          responseText: responseText.substring(0, 500) // First 500 chars only to avoid huge logs
-        }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const response = await fetch('https://api.astria.ai/images/upload', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${ASTRIA_API_KEY}`
+      },
+      body: formData
+    });
     
     if (!response.ok) {
-      throw new Error(`Astria API error: ${result.error || response.statusText}`);
+      const errorText = await response.text();
+      console.error("Astria API error:", response.status, errorText);
+      return new Response(
+        JSON.stringify({ 
+          error: "Astria API error", 
+          status: response.status, 
+          details: errorText.substring(0, 500) 
+        }),
+        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+    
+    const result = await response.json();
+    console.log("Astria API success response:", JSON.stringify(result));
     
     return new Response(
       JSON.stringify(result),
@@ -172,17 +151,8 @@ async function handleImageUpload(req: Request, userId: string) {
 
 async function createTune(req: Request, userId: string) {
   try {
-    console.log("Processing create tune request");
-    let requestBody;
-    try {
-      requestBody = await req.json();
-    } catch (jsonError) {
-      console.error('JSON parsing error:', jsonError);
-      return new Response(
-        JSON.stringify({ error: "Invalid JSON in request body" }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    console.log("Processing create tune request for user:", userId);
+    const requestBody = await req.json();
     
     const { imageIds, callbackUrl } = requestBody;
     
@@ -195,54 +165,39 @@ async function createTune(req: Request, userId: string) {
     
     // Create tune on Astria
     console.log(`Creating tune with ${imageIds.length} images`);
-    let response;
-    try {
-      response = await fetch('https://api.astria.ai/tunes', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${ASTRIA_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          title: `headshot_user_${userId}`,
-          instance_prompt: `photo of sks${userId} person`,
-          class_prompt: "person",
-          images: imageIds,
-          callback_url: callbackUrl || null
-        })
-      });
-    } catch (fetchError) {
-      console.error('Astria API network error:', fetchError);
-      return new Response(
-        JSON.stringify({ error: "Network error connecting to Astria API", details: fetchError.message }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
-    // Process the response
-    let result;
-    try {
-      result = await response.json();
-      console.log("Astria create tune response:", JSON.stringify(result));
-    } catch (jsonError) {
-      console.error('JSON parsing error:', jsonError);
-      const responseText = await response.text();
-      return new Response(
-        JSON.stringify({ 
-          error: "Failed to parse Astria API response", 
-          details: jsonError.message,
-          responseText: responseText.substring(0, 500) // First 500 chars only
-        }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const response = await fetch('https://api.astria.ai/tunes', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${ASTRIA_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        title: `headshot_user_${userId}`,
+        instance_prompt: `photo of sks${userId} person`,
+        class_prompt: "person",
+        images: imageIds,
+        callback_url: callbackUrl || null
+      })
+    });
     
     if (!response.ok) {
-      throw new Error(`Astria API error: ${result.error || response.statusText}`);
+      const errorText = await response.text();
+      console.error("Astria tune creation error:", response.status, errorText);
+      return new Response(
+        JSON.stringify({ 
+          error: "Astria API error", 
+          status: response.status, 
+          details: errorText.substring(0, 500)
+        }),
+        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
     
-    // Store the tune ID in the database for this user
-    await supabase
+    const result = await response.json();
+    console.log("Astria create tune success:", JSON.stringify(result));
+    
+    // Store the tune ID in the database
+    const { error: dbError } = await supabase
       .from('user_tunes')
       .upsert({ 
         user_id: userId, 
@@ -250,6 +205,10 @@ async function createTune(req: Request, userId: string) {
         status: 'training',
         created_at: new Date().toISOString()
       });
+    
+    if (dbError) {
+      console.error("Database error storing tune:", dbError);
+    }
     
     return new Response(
       JSON.stringify(result),
@@ -267,34 +226,38 @@ async function createTune(req: Request, userId: string) {
 async function checkTuneStatus(req: Request, userId: string) {
   try {
     console.log("Checking tune status for user:", userId);
-    let requestBody = {};
+    let requestBody;
     
-    // If a specific tuneId was sent in the request body, use it
     try {
       requestBody = await req.json();
-    } catch (e) {
-      // No JSON body, that's fine
+    } catch {
+      requestBody = {};
     }
     
     const requestTuneId = requestBody.tuneId;
     
-    // Get tune ID from the database for this user
-    const { data: userTune, error: tuneError } = await supabase
-      .from('user_tunes')
-      .select('tune_id, status')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-    
-    if (tuneError || !userTune) {
-      return new Response(
-        JSON.stringify({ error: "No tune found for this user" }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Get tune ID from the database for this user if not specified
+    let tuneId = requestTuneId;
+    if (!tuneId) {
+      const { data, error } = await supabase
+        .from('user_tunes')
+        .select('tune_id')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (error || !data) {
+        console.error("Error finding tune:", error);
+        return new Response(
+          JSON.stringify({ error: "No tune found for this user" }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      tuneId = data.tune_id;
     }
     
-    const tuneId = requestTuneId || userTune.tune_id;
     console.log("Checking status for tune ID:", tuneId);
     
     // Check status on Astria
@@ -305,19 +268,36 @@ async function checkTuneStatus(req: Request, userId: string) {
       }
     });
     
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Astria status check error:", response.status, errorText);
+      return new Response(
+        JSON.stringify({ 
+          error: "Astria API error", 
+          status: response.status, 
+          details: errorText.substring(0, 500)
+        }),
+        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
     const result = await response.json();
     console.log("Astria tune status response:", JSON.stringify(result));
     
-    if (!response.ok) {
-      throw new Error(`Astria API error: ${result.error || response.statusText}`);
-    }
-    
-    // Update status in database if it has changed
-    if (result.status && result.status !== userTune.status) {
-      await supabase
+    // Update status in database if changed
+    if (result.status) {
+      const { data } = await supabase
         .from('user_tunes')
-        .update({ status: result.status })
-        .eq('tune_id', tuneId);
+        .select('status')
+        .eq('tune_id', tuneId)
+        .single();
+      
+      if (data && data.status !== result.status) {
+        await supabase
+          .from('user_tunes')
+          .update({ status: result.status })
+          .eq('tune_id', tuneId);
+      }
     }
     
     return new Response(
@@ -335,21 +315,11 @@ async function checkTuneStatus(req: Request, userId: string) {
 
 async function generateHeadshots(req: Request, userId: string) {
   try {
-    console.log("Processing generate headshots request");
-    let requestBody;
+    console.log("Processing generate headshots request for user:", userId);
+    const requestBody = await req.json();
+    console.log("Request body:", JSON.stringify(requestBody));
     
-    try {
-      requestBody = await req.json();
-      console.log("Request body:", JSON.stringify(requestBody));
-    } catch (jsonError) {
-      console.error('JSON parsing error:', jsonError);
-      return new Response(
-        JSON.stringify({ error: "Invalid JSON in request body" }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
-    const { prompt, numImages, styleType } = requestBody;
+    const { prompt, numImages, styleType, tuneId: requestTuneId } = requestBody;
     
     if (!prompt) {
       return new Response(
@@ -358,24 +328,29 @@ async function generateHeadshots(req: Request, userId: string) {
       );
     }
     
-    // Get tune ID from the database for this user
-    const { data: userTune, error: tuneError } = await supabase
-      .from('user_tunes')
-      .select('tune_id')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-    
-    if (tuneError || !userTune) {
-      console.error('Tune lookup error:', tuneError);
-      return new Response(
-        JSON.stringify({ error: "No tune found for this user", details: tuneError?.message }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Get tune ID from the request or database
+    let tuneId = requestTuneId;
+    if (!tuneId) {
+      const { data, error } = await supabase
+        .from('user_tunes')
+        .select('tune_id')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (error || !data) {
+        console.error("Error finding tune:", error);
+        return new Response(
+          JSON.stringify({ error: "No tune found for this user" }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      tuneId = data.tune_id;
     }
     
-    console.log("Found tune ID for generation:", userTune.tune_id);
+    console.log("Using tune ID for generation:", tuneId);
     
     // Generate images using the tune
     let promptText = prompt;
@@ -389,9 +364,9 @@ async function generateHeadshots(req: Request, userId: string) {
       promptText = `${prompt}, artistic lighting, creative setting, high contrast, professional photography`;
     }
     
-    console.log("Sending generation request to Astria with prompt:", promptText);
+    console.log("Generating with prompt:", promptText);
     
-    const response = await fetch(`https://api.astria.ai/tunes/${userTune.tune_id}/prompts`, {
+    const response = await fetch(`https://api.astria.ai/tunes/${tuneId}/prompts`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${ASTRIA_API_KEY}`,
@@ -403,26 +378,21 @@ async function generateHeadshots(req: Request, userId: string) {
       })
     });
     
-    let result;
-    try {
-      result = await response.json();
-      console.log("Astria generate headshots response:", JSON.stringify(result).substring(0, 500));
-    } catch (jsonError) {
-      console.error('JSON parsing error:', jsonError);
-      const responseText = await response.text();
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Astria generation error:", response.status, errorText);
       return new Response(
         JSON.stringify({ 
-          error: "Failed to parse Astria API response", 
-          details: jsonError.message,
-          responseText: responseText.substring(0, 500)
+          error: "Astria API error", 
+          status: response.status, 
+          details: errorText.substring(0, 500)
         }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
-    if (!response.ok) {
-      throw new Error(`Astria API error: ${result.error || response.statusText}`);
-    }
+    const result = await response.json();
+    console.log("Astria generation success, response length:", JSON.stringify(result).length);
     
     // Store generated images in the database
     if (result.images && Array.isArray(result.images)) {
@@ -434,7 +404,13 @@ async function generateHeadshots(req: Request, userId: string) {
         created_at: new Date().toISOString()
       }));
       
-      await supabase.from('user_headshots').insert(headshotsToInsert);
+      const { error: dbError } = await supabase
+        .from('user_headshots')
+        .insert(headshotsToInsert);
+      
+      if (dbError) {
+        console.error("Database error storing headshots:", dbError);
+      }
     }
     
     return new Response(
