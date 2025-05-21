@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -119,7 +120,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
           setError('There was an error during training.');
           toast.error('Training failed. Please try again.');
         }
-      }, 10000); // Poll every 10 seconds
+      }, 15000); // Poll every 15 seconds
       
       setPollingInterval(interval);
     } catch (error: any) {
