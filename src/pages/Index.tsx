@@ -8,7 +8,7 @@ import TrainingSection from "@/components/TrainingSection";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { User } from "lucide-react";
+import { User, ArrowRight, Camera, Sparkles } from "lucide-react";
 
 const Index = () => {
   const [currentStep, setCurrentStep] = useState<"upload" | "training" | "style" | "preview">("upload");
@@ -67,7 +67,7 @@ const Index = () => {
       console.log("Recovered step from localStorage:", storedStep);
       setCurrentStep(storedStep);
     }
-  }, []);
+  }, [isAuthenticated]);
 
   const handleSignIn = async () => {
     try {
@@ -79,6 +79,7 @@ const Index = () => {
       });
       
       if (error) throw error;
+      toast.info("Redirecting to Google for authentication...");
     } catch (error: any) {
       console.error("Sign in error:", error);
       toast.error(`Authentication error: ${error.message}`);
@@ -87,6 +88,7 @@ const Index = () => {
 
   const handleImagesUploaded = (imageIds: string[]) => {
     setUploadedImageIds(imageIds);
+    toast.success(`${imageIds.length} images uploaded successfully!`);
   };
 
   const handleTrainingComplete = (generatedTuneId: string) => {
@@ -94,6 +96,7 @@ const Index = () => {
     setTuneId(generatedTuneId);
     // Store in localStorage for persistence
     localStorage.setItem('currentTuneId', generatedTuneId);
+    toast.success("Training completed successfully!");
   };
 
   const handleStyleSelected = (styleId: string) => {
@@ -101,6 +104,7 @@ const Index = () => {
     setSelectedStyle(styleId);
     // Store in localStorage for persistence
     localStorage.setItem('selectedStyle', styleId);
+    toast.success(`${styleId} style selected successfully!`);
   };
   
   const handleStepChange = (step: "upload" | "training" | "style" | "preview") => {
@@ -118,7 +122,7 @@ const Index = () => {
           <div className="h-3 w-3 bg-brand-600 rounded-full"></div>
           <div className="h-3 w-3 bg-brand-600 rounded-full"></div>
         </div>
-        <p className="mt-4 text-muted-foreground">Loading...</p>
+        <p className="mt-4 text-muted-foreground">Loading your session...</p>
       </div>
     );
   }
@@ -131,13 +135,16 @@ const Index = () => {
         {/* Auth gate */}
         {!isAuthenticated ? (
           <div className="flex flex-col items-center justify-center text-center max-w-md mx-auto py-16">
+            <div className="mb-8 p-4 rounded-full bg-brand-100">
+              <Camera className="h-12 w-12 text-brand-600" />
+            </div>
             <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl mb-6">
               AI Headshot Generator
             </h1>
             <p className="mb-8 text-muted-foreground">
-              Please sign in to create your professional AI headshots
+              Create professional headshots powered by AI. Sign in to get started.
             </p>
-            <Button onClick={handleSignIn} size="lg">
+            <Button onClick={handleSignIn} size="lg" className="bg-brand-600 hover:bg-brand-700">
               <User className="mr-2 h-4 w-4" /> Sign in with Google
             </Button>
           </div>
@@ -186,6 +193,66 @@ const Index = () => {
                 tuneId={tuneId}
                 onBack={() => handleStepChange("style")}
               />
+            )}
+
+            {/* How It Works section */}
+            {currentStep === "upload" && (
+              <section id="how-it-works" className="py-16 border-t mt-16">
+                <div className="text-center max-w-3xl mx-auto mb-12">
+                  <h2 className="text-3xl font-bold tracking-tighter mb-4">How It Works</h2>
+                  <p className="text-muted-foreground">Our AI-powered platform transforms your photos into professional headshots in just a few simple steps.</p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                  <div className="flex flex-col items-center text-center">
+                    <div className="h-12 w-12 rounded-full bg-brand-100 flex items-center justify-center mb-4">
+                      <Camera className="h-6 w-6 text-brand-600" />
+                    </div>
+                    <h3 className="text-xl font-medium mb-2">Upload Photos</h3>
+                    <p className="text-muted-foreground">Upload 3-20 clear photos of yourself with varied expressions and angles.</p>
+                  </div>
+                  
+                  <div className="flex flex-col items-center text-center">
+                    <div className="h-12 w-12 rounded-full bg-brand-100 flex items-center justify-center mb-4">
+                      <Sparkles className="h-6 w-6 text-brand-600" />
+                    </div>
+                    <h3 className="text-xl font-medium mb-2">AI Training</h3>
+                    <p className="text-muted-foreground">Our AI learns your facial features to create accurate, high-quality representations.</p>
+                  </div>
+                  
+                  <div className="flex flex-col items-center text-center">
+                    <div className="h-12 w-12 rounded-full bg-brand-100 flex items-center justify-center mb-4">
+                      <ArrowRight className="h-6 w-6 text-brand-600" />
+                    </div>
+                    <h3 className="text-xl font-medium mb-2">Get Results</h3>
+                    <p className="text-muted-foreground">Receive professional headshots in various styles ready for professional use.</p>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* Examples section */}
+            {currentStep === "upload" && (
+              <section id="examples" className="py-16 border-t">
+                <div className="text-center max-w-3xl mx-auto mb-12">
+                  <h2 className="text-3xl font-bold tracking-tighter mb-4">Example Results</h2>
+                  <p className="text-muted-foreground">See the amazing transformations our AI creates for our users.</p>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                  {["professional", "casual", "creative"].map((style) => (
+                    <div key={style} className="overflow-hidden rounded-lg border shadow-sm">
+                      <div className="aspect-[3/4] bg-muted flex items-center justify-center">
+                        <div className="text-muted-foreground">Example {style} style</div>
+                      </div>
+                      <div className="p-4">
+                        <h4 className="font-medium capitalize">{style} Style</h4>
+                        <p className="text-sm text-muted-foreground">Perfect for {style === 'professional' ? 'LinkedIn and resumes' : style === 'casual' ? 'social media profiles' : 'creative portfolios'}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
             )}
           </>
         )}

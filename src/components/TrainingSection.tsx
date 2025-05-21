@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -21,6 +22,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
   const [progress, setProgress] = useState(0);
   const [tuneId, setTuneId] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('pending');
+  const [statusMessage, setStatusMessage] = useState<string>('');
 
   useEffect(() => {
     // Check for existing tuneId in localStorage
@@ -40,6 +42,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
     setIsTraining(true);
     setProgress(0);
     setStatus('training');
+    setStatusMessage('Initializing AI model training...');
     
     try {
       // Call the Supabase Edge Function to create a tune
@@ -61,6 +64,8 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
       const newTuneId = data.id;
       setTuneId(newTuneId);
       localStorage.setItem('currentTuneId', newTuneId);
+      toast.success("AI model training started successfully");
+      setStatusMessage('Training your AI model...');
       
       // Start polling for status
       const statusInterval = setInterval(async () => {
@@ -78,8 +83,18 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
             const newProgress = Math.min(prev + 5, 90);
             return newProgress;
           });
+          
+          // Update status message
+          if (progress < 30) {
+            setStatusMessage('Analyzing facial features...');
+          } else if (progress < 60) {
+            setStatusMessage('Learning your unique characteristics...');
+          } else {
+            setStatusMessage('Finalizing your AI model...');
+          }
         } else if (status === 'complete') {
           setProgress(100);
+          setStatusMessage('Training complete!');
         }
       }, 3000);
       
@@ -87,6 +102,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
       console.error("Training error:", error);
       toast.error(`Error during training: ${error.message}`);
       setStatus('error');
+      setStatusMessage('There was an error during training.');
     } finally {
       setIsTraining(false);
     }
@@ -111,6 +127,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
         
         if (data.status === 'complete') {
           setProgress(100);
+          setStatusMessage('Training complete!');
           toast.success("Training completed successfully!");
         }
         
@@ -126,21 +143,31 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
 
   return (
     <div className="w-full max-w-md mx-auto">
-      <Card>
+      <Card className="border-2">
         <CardContent className="pt-6 flex flex-col items-center">
           <h3 className="text-xl font-medium text-center mb-6">Train Your Custom AI Model</h3>
           
           {!tuneId && (
             <>
-              <p className="text-center text-muted-foreground mb-6">
-                We'll now use your photos to create a personalized AI model that captures your features.
-                This process typically takes 10-15 minutes.
-              </p>
+              <div className="w-full p-6 bg-muted/50 rounded-lg mb-6">
+                <div className="flex items-start gap-4">
+                  <div className="h-10 w-10 rounded-full bg-brand-100 flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="h-5 w-5 text-brand-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-medium mb-2">AI Training Process</h4>
+                    <p className="text-sm text-muted-foreground">
+                      We'll now use your photos to create a personalized AI model that captures your features.
+                      This process typically takes 10-15 minutes.
+                    </p>
+                  </div>
+                </div>
+              </div>
               
               <Button
                 onClick={startTraining}
                 disabled={isTraining || imageIds.length === 0}
-                className="w-full mb-4"
+                className="w-full mb-4 bg-brand-600 hover:bg-brand-700"
                 size="lg"
               >
                 {isTraining ? (
@@ -149,7 +176,10 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
                     Training in Progress...
                   </>
                 ) : (
-                  "Start Training"
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Start Training
+                  </>
                 )}
               </Button>
             </>
@@ -158,19 +188,18 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
           {(isTraining || tuneId) && (
             <div className="w-full mt-4">
               <div className="flex justify-between text-sm mb-1">
-                <span>Training Progress</span>
+                <span className="font-medium">Training Progress</span>
                 <span>{progress}%</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2.5">
-                <div 
-                  className="bg-brand-600 h-2.5 rounded-full transition-all duration-300 ease-in-out" 
-                  style={{ width: `${progress}%` }}
-                />
+              <Progress value={progress} className="mb-4" />
+              
+              <div className="text-center py-2 px-4 rounded-md bg-muted/50 mb-4">
+                <p className="text-sm">{statusMessage}</p>
               </div>
               
               {status === 'complete' && (
                 <div className="mt-6 text-center">
-                  <div className="inline-flex items-center justify-center rounded-full bg-green-100 p-2 mb-4">
+                  <div className="inline-flex items-center justify-center rounded-full bg-green-100 p-3 mb-4">
                     <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                     </svg>
@@ -190,7 +219,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
             onClick={onContinue}
             variant={status === 'complete' ? "default" : "outline"}
           >
-            Continue <ArrowRight className="ml-2 h-4 w-4" />
+            Continue to Style Selection <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </CardContent>
       </Card>
