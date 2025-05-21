@@ -1,7 +1,8 @@
+
 import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Loader2, Upload, X, Check } from "lucide-react";
+import { ArrowRight, Loader2, Upload, X, Check, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Progress } from "@/components/ui/progress";
@@ -20,8 +21,12 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
   const [uploadedCount, setUploadedCount] = useState(0);
   const [uploadedImageIds, setUploadedImageIds] = useState<string[]>([]);
   const [previewImages, setPreviewImages] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const MIN_REQUIRED_IMAGES = 10;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setError(null);
     if (e.target.files) {
       const selectedFiles = Array.from(e.target.files);
       
@@ -53,17 +58,21 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
 
   const handleUpload = async () => {
     if (files.length === 0) {
+      setError("Please select at least one image");
       toast.error("Please select at least one image");
       return;
     }
 
-    if (files.length < 3) { 
-      toast.error("Please upload at least 3 images for best results");
+    if (files.length < MIN_REQUIRED_IMAGES) { 
+      setError(`Please upload at least ${MIN_REQUIRED_IMAGES} images for optimal AI training results`);
+      toast.error(`Please upload at least ${MIN_REQUIRED_IMAGES} images for optimal AI training results`);
       return;
     }
 
+    setError(null);
     setUploading(true);
     setUploadedCount(0);
+    setUploadedImageIds([]);
     const imageIds: string[] = [];
 
     try {
@@ -82,7 +91,7 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
           // Convert file to base64
           const base64Data = await fileToBase64(file);
           
-          // Call the Supabase Edge Function directly
+          // Call the Supabase Edge Function
           const { data, error } = await supabase.functions.invoke('astria', {
             body: {
               action: 'upload-images',
@@ -107,20 +116,27 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
           }
         } catch (uploadError: any) {
           console.error(`Upload error for image ${i+1}:`, uploadError);
-          // Continue with other uploads instead of stopping on error
           toast.error(`Error uploading image ${i+1}`, { description: uploadError.message });
         }
       }
 
       if (imageIds.length > 0) {
-        setUploadedImageIds(imageIds);
-        onImagesUploaded(imageIds);
-        toast.success(`Successfully uploaded ${imageIds.length} out of ${files.length} images`);
+        if (imageIds.length < MIN_REQUIRED_IMAGES) {
+          const missingCount = MIN_REQUIRED_IMAGES - imageIds.length;
+          setError(`Only ${imageIds.length} images were successfully uploaded. Need ${missingCount} more to meet the minimum of ${MIN_REQUIRED_IMAGES}.`);
+          toast.error(`Upload more images`, { description: `Only ${imageIds.length} images were successfully uploaded. Need ${missingCount} more.` });
+        } else {
+          setUploadedImageIds(imageIds);
+          onImagesUploaded(imageIds);
+          toast.success(`Successfully uploaded ${imageIds.length} out of ${files.length} images`);
+        }
       } else {
+        setError("Failed to upload any images. Please try again.");
         toast.error("Failed to upload any images. Please try again.");
       }
     } catch (error: any) {
       console.error("Upload error:", error);
+      setError(`Error uploading images: ${error.message}`);
       toast.error(`Error uploading images: ${error.message}`);
     } finally {
       setUploading(false);
@@ -148,6 +164,14 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
     const newPreviews = [...previewImages];
     newPreviews.splice(index, 1);
     setPreviewImages(newPreviews);
+    
+    // Clear any existing upload success since we modified the file list
+    if (uploadedImageIds.length > 0) {
+      setUploadedImageIds([]);
+      toast.info("Files changed. You'll need to upload again.");
+    }
+    
+    setError(null);
   };
 
   const uploadProgress = files.length > 0 ? Math.round((uploadedCount / files.length) * 100) : 0;
@@ -168,7 +192,7 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
                 <p className="mb-2 text-sm text-foreground">
                   <span className="font-semibold">Click to upload</span> or drag and drop
                 </p>
-                <p className="text-xs text-muted-foreground">Upload 3-20 selfies (JPG, PNG)</p>
+                <p className="text-xs text-muted-foreground">Upload {MIN_REQUIRED_IMAGES}-20 selfies (JPG, PNG)</p>
               </div>
               <input 
                 id="multi-file-input" 
@@ -182,15 +206,30 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
             </label>
           </div>
           
+          {error && (
+            <div className="w-full mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-red-500" />
+                <p className="text-sm text-red-600">{error}</p>
+              </div>
+            </div>
+          )}
+          
           {previewImages.length > 0 && (
             <div className="w-full mb-6">
               <div className="flex justify-between mb-2">
-                <p className="text-sm font-medium">{files.length} images selected</p>
+                <p className="text-sm font-medium">{files.length} images selected {files.length < MIN_REQUIRED_IMAGES && (
+                  <span className="text-red-500">
+                    (Need at least {MIN_REQUIRED_IMAGES})
+                  </span>
+                )}</p>
                 {!uploading && (
                   <button 
                     onClick={() => {
                       setFiles([]);
                       setPreviewImages([]);
+                      setUploadedImageIds([]);
+                      setError(null);
                     }}
                     className="text-xs text-red-500 hover:text-red-700"
                   >
@@ -247,10 +286,10 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
                   Uploading
                 </>
-              ) : uploadedImageIds.length > 0 ? (
+              ) : uploadedImageIds.length >= MIN_REQUIRED_IMAGES ? (
                 <>
                   <Check className="mr-2 h-4 w-4" />
-                  Uploaded Successfully
+                  {uploadedImageIds.length} Images Uploaded Successfully
                 </>
               ) : (
                 <>
@@ -263,15 +302,15 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
             <Button 
               className="w-full"
               onClick={onContinue}
-              disabled={uploadedImageIds.length === 0}
-              variant={uploadedImageIds.length > 0 ? "default" : "outline"}
+              disabled={uploadedImageIds.length < MIN_REQUIRED_IMAGES}
+              variant={uploadedImageIds.length >= MIN_REQUIRED_IMAGES ? "default" : "outline"}
             >
               Continue <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
           
           <div className="text-sm text-muted-foreground mt-4 text-center">
-            <p>For best results, upload 3-20 clear photos with good lighting and different facial expressions.</p>
+            <p>For best results, upload {MIN_REQUIRED_IMAGES}-20 clear photos with good lighting and different facial expressions.</p>
           </div>
         </CardContent>
       </Card>

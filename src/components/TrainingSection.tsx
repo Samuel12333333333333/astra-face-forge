@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { ArrowRight, Loader2, Sparkles, AlertCircle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,6 +23,8 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
   const [tuneId, setTuneId] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('pending');
   const [statusMessage, setStatusMessage] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const [pollingInterval, setPollingInterval] = useState<number | null>(null);
 
   useEffect(() => {
     // Check for existing tuneId in localStorage
@@ -31,14 +33,29 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
       setTuneId(storedTuneId);
       checkTrainingStatus(storedTuneId);
     }
+
+    // Clean up polling interval on unmount
+    return () => {
+      if (pollingInterval !== null) {
+        clearInterval(pollingInterval);
+      }
+    };
   }, []);
 
   const startTraining = async () => {
     if (imageIds.length === 0) {
+      setError("No images available for training");
       toast.error("No images available for training");
       return;
     }
 
+    if (imageIds.length < 10) {
+      setError("At least 10 images are required for training");
+      toast.error("At least 10 images are required for training");
+      return;
+    }
+
+    setError(null);
     setIsTraining(true);
     setProgress(0);
     setStatus('training');
@@ -68,19 +85,20 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
       setStatusMessage('Training your AI model...');
       
       // Start polling for status
-      const statusInterval = setInterval(async () => {
+      const interval = setInterval(async () => {
         const status = await checkTrainingStatus(newTuneId);
         
         if (status === 'complete') {
-          clearInterval(statusInterval);
+          clearInterval(interval);
+          setPollingInterval(null);
           onTrainingComplete(newTuneId);
         }
         
         // Update progress based on status
         if (status === 'training') {
-          // Increment progress to simulate training progress
+          // Increment progress slightly to show activity
           setProgress((prev) => {
-            const newProgress = Math.min(prev + 5, 90);
+            const newProgress = Math.min(prev + 2, 95);
             return newProgress;
           });
           
@@ -95,11 +113,19 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
         } else if (status === 'complete') {
           setProgress(100);
           setStatusMessage('Training complete!');
+        } else if (status === 'error') {
+          clearInterval(interval);
+          setPollingInterval(null);
+          setStatusMessage('Training failed. Please try again.');
+          setError('There was an error during training.');
+          toast.error('Training failed. Please try again.');
         }
-      }, 3000);
+      }, 10000); // Poll every 10 seconds
       
+      setPollingInterval(interval);
     } catch (error: any) {
       console.error("Training error:", error);
+      setError(`Error during training: ${error.message}`);
       toast.error(`Error during training: ${error.message}`);
       setStatus('error');
       setStatusMessage('There was an error during training.');
@@ -129,14 +155,30 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
           setProgress(100);
           setStatusMessage('Training complete!');
           toast.success("Training completed successfully!");
+          
+          // Clean up polling interval
+          if (pollingInterval !== null) {
+            clearInterval(pollingInterval);
+            setPollingInterval(null);
+          }
+        } else if (data.status === 'error' || data.status === 'failed') {
+          setError('Training failed. Please try again with different images.');
+          setStatusMessage('Training failed.');
+          
+          // Clean up polling interval
+          if (pollingInterval !== null) {
+            clearInterval(pollingInterval);
+            setPollingInterval(null);
+          }
         }
         
         return data.status;
       }
       
       return 'pending';
-    } catch (error) {
+    } catch (error: any) {
       console.error("Status check error:", error);
+      setError(`Error checking training status: ${error.message}`);
       return 'error';
     }
   };
@@ -146,6 +188,15 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
       <Card className="border-2">
         <CardContent className="pt-6 flex flex-col items-center">
           <h3 className="text-xl font-medium text-center mb-6">Train Your Custom AI Model</h3>
+          
+          {error && (
+            <div className="w-full mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-red-600">{error}</p>
+              </div>
+            </div>
+          )}
           
           {!tuneId && (
             <>
@@ -166,7 +217,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
               
               <Button
                 onClick={startTraining}
-                disabled={isTraining || imageIds.length === 0}
+                disabled={isTraining || imageIds.length < 10}
                 className="w-full mb-4 bg-brand-600 hover:bg-brand-700"
                 size="lg"
               >
