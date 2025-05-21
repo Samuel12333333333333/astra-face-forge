@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -108,7 +107,8 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
           }
         } catch (uploadError: any) {
           console.error(`Upload error for image ${i+1}:`, uploadError);
-          toast.error(`Error uploading image ${i+1}: ${uploadError.message}`);
+          // Continue with other uploads instead of stopping on error
+          toast.error(`Error uploading image ${i+1}`, { description: uploadError.message });
         }
       }
 
