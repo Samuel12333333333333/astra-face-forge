@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import StyleSelector from "@/components/StyleSelector";
@@ -26,12 +25,14 @@ const Index = () => {
         
         // Set up auth state change listener FIRST
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+          console.log("Auth state changed in Index:", _event, session?.user?.id);
           setIsAuthenticated(!!session);
           setIsLoading(false);
         });
         
         // THEN check for existing session
         const { data: { session } } = await supabase.auth.getSession();
+        console.log("Current session in Index:", session?.user?.id);
         setIsAuthenticated(!!session);
         setIsLoading(false);
         
@@ -71,10 +72,15 @@ const Index = () => {
 
   const handleSignIn = async () => {
     try {
+      // Clear any previous redirect URL hash that might be stuck
+      if (window.location.hash && window.location.hash.includes('access_token')) {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.href
+          redirectTo: window.location.origin
         }
       });
       
@@ -197,62 +203,61 @@ const Index = () => {
 
             {/* How It Works section */}
             {currentStep === "upload" && (
-              <section id="how-it-works" className="py-16 border-t mt-16">
-                <div className="text-center max-w-3xl mx-auto mb-12">
-                  <h2 className="text-3xl font-bold tracking-tighter mb-4">How It Works</h2>
-                  <p className="text-muted-foreground">Our AI-powered platform transforms your photos into professional headshots in just a few simple steps.</p>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                  <div className="flex flex-col items-center text-center">
-                    <div className="h-12 w-12 rounded-full bg-brand-100 flex items-center justify-center mb-4">
-                      <Camera className="h-6 w-6 text-brand-600" />
-                    </div>
-                    <h3 className="text-xl font-medium mb-2">Upload Photos</h3>
-                    <p className="text-muted-foreground">Upload 10+ clear photos of yourself with varied expressions and angles.</p>
+              <>
+                <section id="how-it-works" className="py-16 border-t mt-16">
+                  <div className="text-center max-w-3xl mx-auto mb-12">
+                    <h2 className="text-3xl font-bold tracking-tighter mb-4">How It Works</h2>
+                    <p className="text-muted-foreground">Our AI-powered platform transforms your photos into professional headshots in just a few simple steps.</p>
                   </div>
                   
-                  <div className="flex flex-col items-center text-center">
-                    <div className="h-12 w-12 rounded-full bg-brand-100 flex items-center justify-center mb-4">
-                      <Sparkles className="h-6 w-6 text-brand-600" />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div className="flex flex-col items-center text-center">
+                      <div className="h-12 w-12 rounded-full bg-brand-100 flex items-center justify-center mb-4">
+                        <Camera className="h-6 w-6 text-brand-600" />
+                      </div>
+                      <h3 className="text-xl font-medium mb-2">Upload Photos</h3>
+                      <p className="text-muted-foreground">Upload 10+ clear photos of yourself with varied expressions and angles.</p>
                     </div>
-                    <h3 className="text-xl font-medium mb-2">AI Training</h3>
-                    <p className="text-muted-foreground">Our AI learns your facial features to create accurate, high-quality representations.</p>
-                  </div>
-                  
-                  <div className="flex flex-col items-center text-center">
-                    <div className="h-12 w-12 rounded-full bg-brand-100 flex items-center justify-center mb-4">
-                      <ArrowRight className="h-6 w-6 text-brand-600" />
+                    
+                    <div className="flex flex-col items-center text-center">
+                      <div className="h-12 w-12 rounded-full bg-brand-100 flex items-center justify-center mb-4">
+                        <Sparkles className="h-6 w-6 text-brand-600" />
+                      </div>
+                      <h3 className="text-xl font-medium mb-2">AI Training</h3>
+                      <p className="text-muted-foreground">Our AI learns your facial features to create accurate, high-quality representations.</p>
                     </div>
-                    <h3 className="text-xl font-medium mb-2">Get Results</h3>
-                    <p className="text-muted-foreground">Receive professional headshots in various styles ready for professional use.</p>
+                    
+                    <div className="flex flex-col items-center text-center">
+                      <div className="h-12 w-12 rounded-full bg-brand-100 flex items-center justify-center mb-4">
+                        <ArrowRight className="h-6 w-6 text-brand-600" />
+                      </div>
+                      <h3 className="text-xl font-medium mb-2">Get Results</h3>
+                      <p className="text-muted-foreground">Receive professional headshots in various styles ready for professional use.</p>
+                    </div>
                   </div>
-                </div>
-              </section>
-            )}
+                </section>
 
-            {/* Examples section */}
-            {currentStep === "upload" && (
-              <section id="examples" className="py-16 border-t">
-                <div className="text-center max-w-3xl mx-auto mb-12">
-                  <h2 className="text-3xl font-bold tracking-tighter mb-4">Example Results</h2>
-                  <p className="text-muted-foreground">See the amazing transformations our AI creates for our users.</p>
-                </div>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                  {["professional", "casual", "creative"].map((style) => (
-                    <div key={style} className="overflow-hidden rounded-lg border shadow-sm">
-                      <div className="aspect-[3/4] bg-muted flex items-center justify-center">
-                        <div className="text-muted-foreground">Example {style} style</div>
+                <section id="examples" className="py-16 border-t">
+                  <div className="text-center max-w-3xl mx-auto mb-12">
+                    <h2 className="text-3xl font-bold tracking-tighter mb-4">Example Results</h2>
+                    <p className="text-muted-foreground">See the amazing transformations our AI creates for our users.</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                    {["professional", "casual", "creative"].map((style) => (
+                      <div key={style} className="overflow-hidden rounded-lg border shadow-sm">
+                        <div className="aspect-[3/4] bg-muted flex items-center justify-center">
+                          <div className="text-muted-foreground">Example {style} style</div>
+                        </div>
+                        <div className="p-4">
+                          <h4 className="font-medium capitalize">{style} Style</h4>
+                          <p className="text-sm text-muted-foreground">Perfect for {style === 'professional' ? 'LinkedIn and resumes' : style === 'casual' ? 'social media profiles' : 'creative portfolios'}</p>
+                        </div>
                       </div>
-                      <div className="p-4">
-                        <h4 className="font-medium capitalize">{style} Style</h4>
-                        <p className="text-sm text-muted-foreground">Perfect for {style === 'professional' ? 'LinkedIn and resumes' : style === 'casual' ? 'social media profiles' : 'creative portfolios'}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
+                    ))}
+                  </div>
+                </section>
+              </>
             )}
           </>
         )}

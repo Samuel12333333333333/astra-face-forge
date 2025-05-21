@@ -57,7 +57,17 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
       console.log("Selected style:", selectedStyle);
       
       // Set up the prompt based on selected style
-      let prompt = "professional headshot";
+      let prompt = "professional headshot of person";
+      
+      if (selectedStyle === 'professional') {
+        prompt += ", professional studio lighting, neutral background, business attire, DSLR, high resolution";
+      } else if (selectedStyle === 'casual') {
+        prompt += ", natural lighting, casual attire, modern setting, Canon 5D, crisp focus";
+      } else if (selectedStyle === 'creative') {
+        prompt += ", artistic lighting, creative setting, high contrast, professional photography";
+      }
+      
+      console.log("Using prompt:", prompt);
       
       // Generate images using Supabase Function
       const { data, error } = await supabase.functions.invoke('astria', {
@@ -197,7 +207,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
               <div className="col-span-full text-center py-8 bg-muted/20 rounded-lg">
                 <div className="flex flex-col items-center justify-center">
                   <ImageIcon className="h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="mb-4">No headshots generated yet. Click "Regenerate" to create some!</p>
+                  <p className="mb-4">No headshots generated yet. Click "Generate" to create some!</p>
                   <Button onClick={handleRegenerate} className="bg-brand-600 hover:bg-brand-700">
                     <RefreshCw className="mr-2 h-4 w-4" /> Generate Headshots
                   </Button>

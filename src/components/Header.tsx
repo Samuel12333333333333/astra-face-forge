@@ -21,6 +21,7 @@ const Header: React.FC = () => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
+        console.log("Auth state changed:", _event, session?.user);
         setUser(session?.user ?? null);
         setLoading(false);
       }
@@ -30,6 +31,7 @@ const Header: React.FC = () => {
     const getSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
+        console.log("Current session:", session?.user);
         setUser(session?.user ?? null);
       } catch (error) {
         console.error("Error getting session:", error);
@@ -45,10 +47,15 @@ const Header: React.FC = () => {
 
   const handleSignIn = async () => {
     try {
+      // Clear any previous redirect URL hash that might be stuck
+      if (window.location.hash && window.location.hash.includes('access_token')) {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.href
+          redirectTo: window.location.origin
         }
       });
       
@@ -70,6 +77,9 @@ const Header: React.FC = () => {
       localStorage.removeItem('currentTuneId');
       localStorage.removeItem('selectedStyle');
       localStorage.removeItem('currentStep');
+      
+      // Force reload to ensure clean state
+      window.location.href = '/';
     } catch (error: any) {
       console.error("Sign out error:", error);
       toast.error(`Sign out error: ${error.message}`);
