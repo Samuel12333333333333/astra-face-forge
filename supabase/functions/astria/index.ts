@@ -12,7 +12,7 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// Astria API key
+// Astria API key and base URL
 const ASTRIA_API_KEY = Deno.env.get('ASTRIA_API_KEY')!;
 const ASTRIA_API_BASE_URL = 'https://api.astria.ai';
 
@@ -85,7 +85,7 @@ serve(async (req) => {
   }
 });
 
-async function handleImageUpload(requestData: any) {
+async function handleImageUpload(requestData) {
   try {
     console.log("Processing image upload");
     
@@ -131,15 +131,20 @@ async function handleImageUpload(requestData: any) {
     const imageFile = new File([imageBlob], actualFileName, { type: contentType || imageBlob.type || 'image/jpeg' });
     formData.append('image', imageFile);
     
-    // Send to Astria API
-    console.log("Sending image to Astria API");
-    const response = await fetch(`${ASTRIA_API_BASE_URL}/images`, {
+    // Log the request info before sending
+    console.log(`Sending image to Astria API: ${ASTRIA_API_BASE_URL}/api/v1/images`);
+    
+    // Send to Astria API - using /api/v1 prefix which was missing
+    const response = await fetch(`${ASTRIA_API_BASE_URL}/api/v1/images`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${ASTRIA_API_KEY}`
       },
       body: formData
     });
+    
+    // Log the response status
+    console.log(`Astria API response status: ${response.status}`);
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -192,8 +197,11 @@ async function createTune(requestBody, userId) {
     
     console.log(`Creating tune with ${imageIds.length} images:`, imageIds);
     
+    // Log the request info before sending
+    console.log(`Creating tune at Astria API: ${ASTRIA_API_BASE_URL}/api/v1/tunes`);
+    
     // Create tune on Astria
-    const response = await fetch(`${ASTRIA_API_BASE_URL}/tunes`, {
+    const response = await fetch(`${ASTRIA_API_BASE_URL}/api/v1/tunes`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${ASTRIA_API_KEY}`,
@@ -207,6 +215,9 @@ async function createTune(requestBody, userId) {
         callback_url: callbackUrl || null
       })
     });
+    
+    // Log the response status
+    console.log(`Astria tune creation response status: ${response.status}`);
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -277,13 +288,19 @@ async function checkTuneStatus(requestBody) {
     
     console.log("Checking status for tune ID:", tuneId);
     
+    // Log the request info before sending
+    console.log(`Checking tune status at Astria API: ${ASTRIA_API_BASE_URL}/api/v1/tunes/${tuneId}`);
+    
     // Check status on Astria
-    const response = await fetch(`${ASTRIA_API_BASE_URL}/tunes/${tuneId}`, {
+    const response = await fetch(`${ASTRIA_API_BASE_URL}/api/v1/tunes/${tuneId}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${ASTRIA_API_KEY}`,
       }
     });
+    
+    // Log the response status
+    console.log(`Astria status check response status: ${response.status}`);
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -366,8 +383,9 @@ async function generateHeadshots(requestBody, userId) {
     }
     
     console.log("Generating with prompt:", promptText);
+    console.log(`Generating headshots at Astria API: ${ASTRIA_API_BASE_URL}/api/v1/tunes/${tuneId}/inference`);
     
-    const response = await fetch(`${ASTRIA_API_BASE_URL}/tunes/${tuneId}/inference`, {
+    const response = await fetch(`${ASTRIA_API_BASE_URL}/api/v1/tunes/${tuneId}/inference`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${ASTRIA_API_KEY}`,
@@ -378,6 +396,8 @@ async function generateHeadshots(requestBody, userId) {
         num_images: numImages || 4
       })
     });
+    
+    console.log(`Astria generation response status: ${response.status}`);
     
     if (!response.ok) {
       const errorText = await response.text();
