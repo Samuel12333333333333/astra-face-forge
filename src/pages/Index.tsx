@@ -209,7 +209,7 @@ const Index = () => {
                       <Camera className="h-6 w-6 text-brand-600" />
                     </div>
                     <h3 className="text-xl font-medium mb-2">Upload Photos</h3>
-                    <p className="text-muted-foreground">Upload 3-20 clear photos of yourself with varied expressions and angles.</p>
+                    <p className="text-muted-foreground">Upload 10+ clear photos of yourself with varied expressions and angles.</p>
                   </div>
                   
                   <div className="flex flex-col items-center text-center">

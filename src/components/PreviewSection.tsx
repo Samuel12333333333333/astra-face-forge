@@ -66,7 +66,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
           prompt, 
           numImages: 4, 
           styleType: selectedStyle || 'professional',
-          tuneId: currentTuneId // Explicitly pass tuneId in the request
+          tuneId: currentTuneId
         }
       });
       

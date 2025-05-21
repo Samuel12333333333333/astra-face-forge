@@ -168,7 +168,7 @@ async function handleImageUpload(requestData: any) {
       JSON.stringify(result),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error('Image upload error:', error);
     return new Response(
       JSON.stringify({ error: `Image upload failed: ${error.message}` }),
@@ -177,7 +177,7 @@ async function handleImageUpload(requestData: any) {
   }
 }
 
-async function createTune(requestBody: any, userId: string) {
+async function createTune(requestBody, userId) {
   try {
     console.log("Processing create tune request for user:", userId);
     
@@ -247,14 +247,13 @@ async function createTune(requestBody: any, userId: string) {
       }
     } catch (dbError) {
       console.error("Error storing tune in database:", dbError);
-      // Continue even if database storage fails
     }
     
     return new Response(
       JSON.stringify(result),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error('Create tune error:', error);
     return new Response(
       JSON.stringify({ error: `Tune creation failed: ${error.message}` }),
@@ -263,7 +262,7 @@ async function createTune(requestBody: any, userId: string) {
   }
 }
 
-async function checkTuneStatus(requestBody: any) {
+async function checkTuneStatus(requestBody) {
   try {
     console.log("Checking tune status");
     
@@ -316,14 +315,13 @@ async function checkTuneStatus(requestBody: any) {
       }
     } catch (dbError) {
       console.error("Error updating tune status in database:", dbError);
-      // Continue even if database update fails
     }
     
     return new Response(
       JSON.stringify(result),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error('Check tune status error:', error);
     return new Response(
       JSON.stringify({ error: `Status check failed: ${error.message}` }),
@@ -332,7 +330,7 @@ async function checkTuneStatus(requestBody: any) {
   }
 }
 
-async function generateHeadshots(requestBody: any, userId: string) {
+async function generateHeadshots(requestBody, userId) {
   try {
     console.log("Processing generate headshots request for user:", userId);
     console.log("Request body:", JSON.stringify(requestBody));
@@ -404,9 +402,9 @@ async function generateHeadshots(requestBody: any, userId: string) {
       );
     }
     
-    // Store generated images in the database if possible
+    // Store generated images in the database
     try {
-      const headshotsToInsert = result.images.map((image: any) => ({
+      const headshotsToInsert = result.images.map((image) => ({
         user_id: userId,
         image_url: image.url,
         prompt_id: result.id || `prompt-${Date.now()}`,
@@ -423,14 +421,13 @@ async function generateHeadshots(requestBody: any, userId: string) {
       }
     } catch (dbError) {
       console.error("Error storing headshots in database:", dbError);
-      // Continue even if database storage fails
     }
     
     return new Response(
       JSON.stringify(result),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error('Generate headshots error:', error);
     return new Response(
       JSON.stringify({ error: `Headshot generation failed: ${error.message}` }),

@@ -24,7 +24,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
   const [status, setStatus] = useState<string>('pending');
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
-  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+  const [pollingInterval, setPollingInterval] = useState<number | null>(null);
 
   useEffect(() => {
     // Check for existing tuneId in localStorage
