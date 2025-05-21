@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Download, Loader2, RefreshCw, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Download, Loader2, RefreshCw, Image as ImageIcon, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +22,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [effectiveTuneId, setEffectiveTuneId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     // First, try to use the tuneId from props
@@ -38,18 +39,21 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
       generateHeadshots(currentTuneId);
     } else {
       console.error("No tuneId available for headshot generation");
+      setError("No model ID available. Please create a model first.");
       toast.error("No model ID available. Please create a model first.");
     }
   }, [tuneId]);
 
   const generateHeadshots = async (currentTuneId: string) => {
     if (!currentTuneId) {
+      setError("No model ID available. Please try again.");
       toast.error("No model ID available. Please try again.");
       return;
     }
     
     setIsGenerating(true);
     setSelectedImage(null);
+    setError(null);
     toast.info("Generating your professional headshots...");
     
     try {
@@ -87,8 +91,11 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
       
       console.log("Generation response received:", data);
       
-      if (data && data.images && Array.isArray(data.images)) {
-        const imageUrls = data.images.map((img: any) => img.url);
+      // Handle both possible response formats (images array directly or nested in output)
+      const images = data.images || (data.output && data.output.images);
+      
+      if (images && Array.isArray(images)) {
+        const imageUrls = images.map((img: any) => img.url);
         setGeneratedImages(imageUrls);
         console.log("Generated image URLs:", imageUrls);
         
@@ -96,14 +103,17 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
           setSelectedImage(imageUrls[0]);
           toast.success(`Successfully generated ${imageUrls.length} headshots!`);
         } else {
+          setError("No images were generated. Try again with different settings.");
           toast.warning("No images were generated. Try again with different settings.");
         }
       } else {
         console.error("Unexpected response format:", data);
+        setError("Failed to generate headshots. Please try again.");
         toast.error("Failed to generate headshots. Please try again.");
       }
     } catch (error: any) {
       console.error("Generation error:", error);
+      setError(`Error generating headshots: ${error.message}`);
       toast.error(`Error generating headshots: ${error.message}`);
     } finally {
       setIsGenerating(false);
@@ -166,6 +176,18 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
             : "Select your favorite headshot to download"}
         </p>
       </div>
+      
+      {error && (
+        <div className="mb-6 p-4 border border-red-200 bg-red-50 rounded-lg">
+          <div className="flex gap-3 items-start">
+            <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-red-800 font-medium">There was an error</p>
+              <p className="text-red-600 text-sm">{error}</p>
+            </div>
+          </div>
+        </div>
+      )}
       
       {isGenerating ? (
         <div className="flex flex-col items-center justify-center py-16 bg-muted/20 rounded-lg">
