@@ -11,7 +11,9 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
-      retry: 1,
+      retry: 2,
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      gcTime: 1000 * 60 * 10, // 10 minutes
     },
   },
 });
@@ -20,7 +22,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider delayDuration={300}>
       <Toaster />
-      <Sonner />
+      <Sonner position="top-right" closeButton />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />

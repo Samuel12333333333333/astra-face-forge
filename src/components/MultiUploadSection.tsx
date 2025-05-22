@@ -23,7 +23,8 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const MIN_REQUIRED_IMAGES = 10;
+  // Reducing the minimum required number of images to make the app more user-friendly
+  const MIN_REQUIRED_IMAGES = 5;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);

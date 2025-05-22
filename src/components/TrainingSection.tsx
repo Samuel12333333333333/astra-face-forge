@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,9 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
   // Change the type to NodeJS.Timeout | null to match what setInterval returns
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
 
+  // Minimum required images
+  const MIN_REQUIRED_IMAGES = 5;
+
   useEffect(() => {
     // Check for existing tuneId in localStorage
     const storedTuneId = localStorage.getItem('currentTuneId');
@@ -49,9 +53,9 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
       return;
     }
 
-    if (imageIds.length < 10) {
-      setError("At least 10 images are required for training");
-      toast.error("At least 10 images are required for training");
+    if (imageIds.length < MIN_REQUIRED_IMAGES) {
+      setError(`At least ${MIN_REQUIRED_IMAGES} images are required for training`);
+      toast.error(`At least ${MIN_REQUIRED_IMAGES} images are required for training`);
       return;
     }
 
@@ -217,7 +221,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
               
               <Button
                 onClick={startTraining}
-                disabled={isTraining || imageIds.length < 10}
+                disabled={isTraining || imageIds.length < MIN_REQUIRED_IMAGES}
                 className="w-full mb-4 bg-brand-600 hover:bg-brand-700"
                 size="lg"
               >

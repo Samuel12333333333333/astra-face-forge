@@ -131,47 +131,26 @@ async function handleImageUpload(requestData) {
     const imageFile = new File([imageBlob], actualFileName, { type: contentType || imageBlob.type || 'image/jpeg' });
     formData.append('image', imageFile);
     
-    // Try both potential API endpoints
-    let response;
-    let endpointTried = '';
+    // Send to Astria API
+    const response = await fetch(`${ASTRIA_API_BASE_URL}/api/v1/images`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${ASTRIA_API_KEY}`
+      },
+      body: formData
+    });
     
-    try {
-      // First try with /v1/images (most likely based on documentation)
-      endpointTried = `${ASTRIA_API_BASE_URL}/v1/images`;
-      console.log(`Trying image upload to endpoint: ${endpointTried}`);
-      
-      response = await fetch(endpointTried, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${ASTRIA_API_KEY}`
-        },
-        body: formData
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Status: ${response.status}`);
-      }
-    } catch (error) {
-      console.warn(`Failed with endpoint ${endpointTried}: ${error.message}`);
-      
-      // Fallback to /api/v1/images
-      endpointTried = `${ASTRIA_API_BASE_URL}/api/v1/images`;
-      console.log(`Retrying with alternative endpoint: ${endpointTried}`);
-      
-      response = await fetch(endpointTried, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${ASTRIA_API_KEY}`
-        },
-        body: formData
-      });
-    }
-    
-    console.log(`Astria API response status: ${response.status} from endpoint: ${endpointTried}`);
+    console.log(`Astria API response status: ${response.status}`);
     
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Astria API error:", response.status, errorText);
+      let errorText = "";
+      try {
+        errorText = await response.text();
+        console.error("Astria API error response:", errorText);
+      } catch (e) {
+        errorText = "Could not read error response";
+      }
+      
       return new Response(
         JSON.stringify({ 
           error: "Astria API error", 
@@ -182,8 +161,19 @@ async function handleImageUpload(requestData) {
       );
     }
     
-    const result = await response.json();
-    console.log("Astria API success response:", JSON.stringify(result));
+    let result;
+    try {
+      result = await response.json();
+      console.log("Astria API success response:", JSON.stringify(result));
+    } catch (e) {
+      console.error("Failed to parse JSON response:", e);
+      const text = await response.text();
+      console.log("Raw response:", text);
+      return new Response(
+        JSON.stringify({ error: "Failed to parse API response", raw: text.substring(0, 500) }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     if (!result.id) {
       return new Response(
@@ -211,70 +201,42 @@ async function createTune(requestBody, userId) {
     
     const { imageIds, callbackUrl } = requestBody;
     
-    if (!imageIds || !Array.isArray(imageIds) || imageIds.length < 10) {
+    if (!imageIds || !Array.isArray(imageIds) || imageIds.length < 5) {
       return new Response(
-        JSON.stringify({ error: "At least 10 image IDs are required" }),
+        JSON.stringify({ error: "At least 5 image IDs are required" }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
     console.log(`Creating tune with ${imageIds.length} images:`, imageIds);
     
-    // Try both potential API endpoints
-    let response;
-    let endpointTried = '';
+    // Create tune with Astria API
+    const response = await fetch(`${ASTRIA_API_BASE_URL}/api/v1/tunes`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${ASTRIA_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        title: `headshot_user_${userId}`,
+        instance_prompt: `photo of sks${userId} person`,
+        class_prompt: "person",
+        images: imageIds,
+        callback_url: callbackUrl || null
+      })
+    });
     
-    try {
-      // First try with /v1/tunes (most likely based on documentation)
-      endpointTried = `${ASTRIA_API_BASE_URL}/v1/tunes`;
-      console.log(`Trying tune creation at endpoint: ${endpointTried}`);
-      
-      response = await fetch(endpointTried, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${ASTRIA_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          title: `headshot_user_${userId}`,
-          instance_prompt: `photo of sks${userId} person`,
-          class_prompt: "person",
-          images: imageIds,
-          callback_url: callbackUrl || null
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Status: ${response.status}`);
-      }
-    } catch (error) {
-      console.warn(`Failed with endpoint ${endpointTried}: ${error.message}`);
-      
-      // Fallback to /api/v1/tunes
-      endpointTried = `${ASTRIA_API_BASE_URL}/api/v1/tunes`;
-      console.log(`Retrying with alternative endpoint: ${endpointTried}`);
-      
-      response = await fetch(endpointTried, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${ASTRIA_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          title: `headshot_user_${userId}`,
-          instance_prompt: `photo of sks${userId} person`,
-          class_prompt: "person",
-          images: imageIds,
-          callback_url: callbackUrl || null
-        })
-      });
-    }
-    
-    console.log(`Astria tune creation response status: ${response.status} from endpoint: ${endpointTried}`);
+    console.log(`Astria tune creation response status: ${response.status}`);
     
     if (!response.ok) {
-      const errorText = await response.text();
+      let errorText = "";
+      try {
+        errorText = await response.text();
+      } catch (e) {
+        errorText = "Could not read error response";
+      }
       console.error("Astria tune creation error:", response.status, errorText);
+      
       return new Response(
         JSON.stringify({ 
           error: "Astria tune creation failed", 
@@ -285,8 +247,19 @@ async function createTune(requestBody, userId) {
       );
     }
     
-    const result = await response.json();
-    console.log("Astria create tune success:", JSON.stringify(result));
+    let result;
+    try {
+      result = await response.json();
+      console.log("Astria create tune success:", JSON.stringify(result));
+    } catch (e) {
+      console.error("Failed to parse JSON response:", e);
+      const text = await response.text();
+      console.log("Raw response:", text);
+      return new Response(
+        JSON.stringify({ error: "Failed to parse API response", raw: text.substring(0, 500) }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     if (!result.id) {
       return new Response(
@@ -297,20 +270,38 @@ async function createTune(requestBody, userId) {
     
     // Store the tune ID in the database
     try {
-      const { error: dbError } = await supabase
-        .from('user_tunes')
-        .upsert({ 
+      const { data: modelData, error: modelError } = await supabase
+        .from('models')
+        .insert({ 
           user_id: userId, 
-          tune_id: result.id,
+          modelId: result.id,
           status: result.status || 'training',
-          created_at: new Date().toISOString()
-        });
+          name: `Headshot Model - ${new Date().toLocaleDateString()}`,
+          type: 'headshot'
+        })
+        .select();
       
-      if (dbError) {
-        console.error("Database error storing tune:", dbError);
+      if (modelError) {
+        console.error("Database error storing model:", modelError);
+      } else if (modelData && modelData.length > 0) {
+        console.log("Stored model in database with ID:", modelData[0].id);
+        
+        // Associate the uploaded images with this model
+        for (const imageId of imageIds) {
+          const { error: sampleError } = await supabase
+            .from('samples')
+            .insert({ 
+              modelId: modelData[0].id,
+              uri: imageId
+            });
+            
+          if (sampleError) {
+            console.error("Error storing sample image:", sampleError);
+          }
+        }
       }
     } catch (dbError) {
-      console.error("Error storing tune in database:", dbError);
+      console.error("Error storing model in database:", dbError);
     }
     
     return new Response(
@@ -341,45 +332,25 @@ async function checkTuneStatus(requestBody) {
     
     console.log("Checking status for tune ID:", tuneId);
     
-    // Try both potential API endpoints
-    let response;
-    let endpointTried = '';
-    
-    try {
-      // First try with /v1/tunes/{tuneId} (most likely based on documentation)
-      endpointTried = `${ASTRIA_API_BASE_URL}/v1/tunes/${tuneId}`;
-      console.log(`Checking tune status at endpoint: ${endpointTried}`);
-      
-      response = await fetch(endpointTried, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${ASTRIA_API_KEY}`,
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Status: ${response.status}`);
+    // Check status with Astria API
+    const response = await fetch(`${ASTRIA_API_BASE_URL}/api/v1/tunes/${tuneId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${ASTRIA_API_KEY}`,
       }
-    } catch (error) {
-      console.warn(`Failed with endpoint ${endpointTried}: ${error.message}`);
-      
-      // Fallback to /api/v1/tunes/{tuneId}
-      endpointTried = `${ASTRIA_API_BASE_URL}/api/v1/tunes/${tuneId}`;
-      console.log(`Retrying with alternative endpoint: ${endpointTried}`);
-      
-      response = await fetch(endpointTried, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${ASTRIA_API_KEY}`,
-        }
-      });
-    }
+    });
     
-    console.log(`Astria status check response status: ${response.status} from endpoint: ${endpointTried}`);
+    console.log(`Astria status check response status: ${response.status}`);
     
     if (!response.ok) {
-      const errorText = await response.text();
+      let errorText = "";
+      try {
+        errorText = await response.text();
+      } catch (e) {
+        errorText = "Could not read error response";
+      }
       console.error("Astria status check error:", response.status, errorText);
+      
       return new Response(
         JSON.stringify({ 
           error: "Astria status check failed", 
@@ -390,23 +361,45 @@ async function checkTuneStatus(requestBody) {
       );
     }
     
-    const result = await response.json();
-    console.log("Astria tune status response:", JSON.stringify(result));
+    let result;
+    try {
+      result = await response.json();
+      console.log("Astria tune status response:", JSON.stringify(result));
+    } catch (e) {
+      console.error("Failed to parse JSON response:", e);
+      const text = await response.text();
+      console.log("Raw response:", text);
+      return new Response(
+        JSON.stringify({ error: "Failed to parse API response", raw: text.substring(0, 500) }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     // Update status in database if possible
     try {
       if (result.id && result.status) {
-        const { error: dbError } = await supabase
-          .from('user_tunes')
-          .update({ status: result.status })
-          .eq('tune_id', tuneId);
+        // Find the model with this tune ID
+        const { data: models, error: findError } = await supabase
+          .from('models')
+          .select('id')
+          .eq('modelId', tuneId)
+          .limit(1);
         
-        if (dbError) {
-          console.error("Database error updating tune status:", dbError);
+        if (findError) {
+          console.error("Error finding model:", findError);
+        } else if (models && models.length > 0) {
+          const { error: updateError } = await supabase
+            .from('models')
+            .update({ status: result.status })
+            .eq('id', models[0].id);
+          
+          if (updateError) {
+            console.error("Database error updating model status:", updateError);
+          }
         }
       }
     } catch (dbError) {
-      console.error("Error updating tune status in database:", dbError);
+      console.error("Error updating model status in database:", dbError);
     }
     
     return new Response(
@@ -427,7 +420,7 @@ async function generateHeadshots(requestBody, userId) {
     console.log("Processing generate headshots request for user:", userId);
     console.log("Request body:", JSON.stringify(requestBody));
     
-    const { prompt, numImages, styleType, tuneId } = requestBody;
+    const { prompt, numImages = 4, styleType, tuneId } = requestBody;
     
     if (!prompt) {
       return new Response(
@@ -459,66 +452,56 @@ async function generateHeadshots(requestBody, userId) {
     
     console.log("Generating with prompt:", promptText);
     
-    // Try different endpoints for generating headshots
-    let response;
-    let endpointTried = '';
+    // Generate headshots with Astria API
+    const response = await fetch(`${ASTRIA_API_BASE_URL}/api/v1/tunes/${tuneId}/prompts`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${ASTRIA_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        prompt: promptText,
+        num_images: numImages || 4
+      })
+    });
     
-    // Array of possible endpoints to try
-    const possibleEndpoints = [
-      `/v1/tunes/${tuneId}/inference`,     // Standard inference endpoint
-      `/api/v1/tunes/${tuneId}/inference`, // Alternative inference endpoint
-      `/v1/tunes/${tuneId}/prompts`,       // Prompts-based endpoint (documented)
-      `/api/v1/tunes/${tuneId}/prompts`    // Alternative prompts endpoint
-    ];
+    console.log(`Astria generation response status: ${response.status}`);
     
-    let successfulResponse = null;
-    
-    // Try each endpoint until one works
-    for (const endpoint of possibleEndpoints) {
-      endpointTried = `${ASTRIA_API_BASE_URL}${endpoint}`;
-      console.log(`Trying generation at endpoint: ${endpointTried}`);
-      
+    if (!response.ok) {
+      let errorText = "";
       try {
-        response = await fetch(endpointTried, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${ASTRIA_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            prompt: promptText,
-            num_images: numImages || 4
-          })
-        });
-        
-        console.log(`${endpointTried} response status: ${response.status}`);
-        
-        if (response.ok) {
-          successfulResponse = response;
-          console.log(`Successfully used endpoint: ${endpointTried}`);
-          break;
-        }
-      } catch (error) {
-        console.warn(`Failed with endpoint ${endpointTried}: ${error.message}`);
+        errorText = await response.text();
+      } catch (e) {
+        errorText = "Could not read error response";
       }
-    }
-    
-    if (!successfulResponse) {
+      console.error("Astria generation error:", response.status, errorText);
+      
       return new Response(
         JSON.stringify({ 
-          error: "All Astria generation endpoints failed", 
-          lastEndpointTried: endpointTried
+          error: "Astria generation failed", 
+          status: response.status, 
+          details: errorText.substring(0, 500) 
         }),
+        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    let result;
+    try {
+      result = await response.json();
+      console.log("Astria generation success, received result:", JSON.stringify(result).substring(0, 300) + "...");
+    } catch (e) {
+      console.error("Failed to parse JSON response:", e);
+      const text = await response.text();
+      console.log("Raw response:", text.substring(0, 500));
+      return new Response(
+        JSON.stringify({ error: "Failed to parse API response", raw: text.substring(0, 500) }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
-    const result = await successfulResponse.json();
-    console.log("Astria generation success, received result");
-    
-    // Handle both potential response formats (images array or output.images array)
-    if ((!result.images || !Array.isArray(result.images) || result.images.length === 0) &&
-        (!result.output || !result.output.images || !Array.isArray(result.output.images) || result.output.images.length === 0)) {
+    // Check if we have images in the response
+    if (!result.id || !result.output || !result.output.images || !Array.isArray(result.output.images) || result.output.images.length === 0) {
       console.error("No images in response:", JSON.stringify(result).substring(0, 500));
       return new Response(
         JSON.stringify({ error: "No images returned from Astria API", response: result }),
@@ -526,32 +509,43 @@ async function generateHeadshots(requestBody, userId) {
       );
     }
     
-    // Normalize the response to have consistent format
-    const normalizedResult = {
-      id: result.id || `prompt-${Date.now()}`,
-      images: result.images || result.output.images
-    };
+    // Find the model record for this tune ID
+    const { data: models, error: findError } = await supabase
+      .from('models')
+      .select('id')
+      .eq('modelId', tuneId)
+      .limit(1);
     
-    // Store generated images in the database
-    try {
-      const headshotsToInsert = normalizedResult.images.map((image) => ({
-        user_id: userId,
-        image_url: image.url,
-        prompt_id: normalizedResult.id,
-        style_type: styleType || 'standard',
-        created_at: new Date().toISOString()
-      }));
-      
-      const { error: dbError } = await supabase
-        .from('user_headshots')
-        .insert(headshotsToInsert);
-      
-      if (dbError) {
-        console.error("Database error storing headshots:", dbError);
+    if (findError || !models || models.length === 0) {
+      console.error("Error finding model:", findError || "Model not found");
+    } else {
+      // Store generated images in the database
+      try {
+        const modelId = models[0].id;
+        const headshotsToInsert = result.output.images.map((image) => ({
+          modelId: modelId,
+          uri: image.url,
+        }));
+        
+        const { error: dbError } = await supabase
+          .from('images')
+          .insert(headshotsToInsert);
+        
+        if (dbError) {
+          console.error("Database error storing headshots:", dbError);
+        } else {
+          console.log(`Successfully stored ${headshotsToInsert.length} headshots in database`);
+        }
+      } catch (dbError) {
+        console.error("Error storing headshots in database:", dbError);
       }
-    } catch (dbError) {
-      console.error("Error storing headshots in database:", dbError);
     }
+    
+    // Format the response to include the image URLs
+    const normalizedResult = {
+      id: result.id,
+      images: result.output.images.map(img => img.url)
+    };
     
     return new Response(
       JSON.stringify(normalizedResult),
