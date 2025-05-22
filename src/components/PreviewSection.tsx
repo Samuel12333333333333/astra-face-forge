@@ -12,6 +12,10 @@ interface PreviewSectionProps {
   onBack: () => void;
 }
 
+// Define fixed types for style prompts to avoid recursive type definitions
+type StyleType = 'professional' | 'casual' | 'creative';
+type StylePromptsType = Record<StyleType, string>;
+
 const PreviewSection: React.FC<PreviewSectionProps> = ({
   tuneId,
   selectedStyle,
@@ -23,8 +27,8 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
   const [selectedHeadshot, setSelectedHeadshot] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   
-  // Style prompts
-  const stylePrompts = {
+  // Style prompts with properly typed object
+  const stylePrompts: StylePromptsType = {
     professional: "a professional headshot of sks person with studio lighting, neutral background, business attire",
     casual: "a casual portrait of sks person with natural lighting, relaxed expression, modern setting",
     creative: "an artistic portrait of sks person with dramatic lighting, creative composition, unique setting"
@@ -86,7 +90,11 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
     
     try {
       setIsGenerating(true);
-      const prompt = stylePrompts[selectedStyle as keyof typeof stylePrompts] || stylePrompts.professional;
+      // Use type assertion here to ensure valid style key
+      const validStyle = (selectedStyle as StyleType) in stylePrompts ? 
+        (selectedStyle as StyleType) : 
+        'professional';
+      const prompt = stylePrompts[validStyle];
       
       const { data, error } = await supabase.functions.invoke('astria', {
         body: {
