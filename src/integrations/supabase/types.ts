@@ -9,56 +9,114 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      user_headshots: {
+      credits: {
         Row: {
-          created_at: string | null
-          id: string
-          image_url: string
-          prompt_id: string | null
-          style_type: string | null
+          created_at: string
+          credits: number
+          id: number
           user_id: string
         }
         Insert: {
-          created_at?: string | null
-          id?: string
-          image_url: string
-          prompt_id?: string | null
-          style_type?: string | null
+          created_at?: string
+          credits?: number
+          id?: number
           user_id: string
         }
         Update: {
-          created_at?: string | null
-          id?: string
-          image_url?: string
-          prompt_id?: string | null
-          style_type?: string | null
+          created_at?: string
+          credits?: number
+          id?: number
           user_id?: string
         }
         Relationships: []
       }
-      user_tunes: {
+      images: {
         Row: {
-          created_at: string | null
-          id: string
-          status: string
-          tune_id: string
-          user_id: string
+          created_at: string
+          id: number
+          modelid: number
+          uri: string
         }
         Insert: {
-          created_at?: string | null
-          id?: string
-          status?: string
-          tune_id: string
-          user_id: string
+          created_at?: string
+          id?: number
+          modelid: number
+          uri: string
         }
         Update: {
-          created_at?: string | null
-          id?: string
+          created_at?: string
+          id?: number
+          modelid?: number
+          uri?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "images_modelid_fkey"
+            columns: ["modelid"]
+            isOneToOne: false
+            referencedRelation: "models"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      models: {
+        Row: {
+          created_at: string
+          id: number
+          modelid: string | null
+          name: string | null
+          status: string
+          type: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          modelid?: string | null
+          name?: string | null
           status?: string
-          tune_id?: string
-          user_id?: string
+          type?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          modelid?: string | null
+          name?: string | null
+          status?: string
+          type?: string | null
+          user_id?: string | null
         }
         Relationships: []
+      }
+      samples: {
+        Row: {
+          created_at: string
+          id: number
+          modelid: number
+          uri: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          modelid: number
+          uri: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          modelid?: number
+          uri?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "samples_modelid_fkey"
+            columns: ["modelid"]
+            isOneToOne: false
+            referencedRelation: "models"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
