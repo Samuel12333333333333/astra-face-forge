@@ -12,9 +12,13 @@ interface PreviewSectionProps {
   onBack: () => void;
 }
 
-// Define fixed types for style prompts to avoid recursive type definitions
+// Define specific literal types to avoid deep type instantiation
 type StyleType = 'professional' | 'casual' | 'creative';
-type StylePromptsType = Record<StyleType, string>;
+type StylePromptsType = {
+  professional: string;
+  casual: string;
+  creative: string;
+};
 
 const PreviewSection: React.FC<PreviewSectionProps> = ({
   tuneId,
@@ -27,7 +31,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
   const [selectedHeadshot, setSelectedHeadshot] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   
-  // Style prompts with properly typed object
+  // Style prompts with explicit type definition
   const stylePrompts: StylePromptsType = {
     professional: "a professional headshot of sks person with studio lighting, neutral background, business attire",
     casual: "a casual portrait of sks person with natural lighting, relaxed expression, modern setting",
@@ -74,8 +78,10 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
         setHeadshots(imageUrls);
         setSelectedHeadshot(imageUrls[0]); // Select the first image by default
       }
-    } catch (error: any) {
-      console.error("Error fetching headshots:", error);
+    } catch (error) {
+      // Use a more explicit type for the error
+      const err = error as Error;
+      console.error("Error fetching headshots:", err);
       toast.error("Failed to load headshots");
     } finally {
       setIsLoading(false);
@@ -90,11 +96,14 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
     
     try {
       setIsGenerating(true);
-      // Use type assertion here to ensure valid style key
-      const validStyle = (selectedStyle as StyleType) in stylePrompts ? 
-        (selectedStyle as StyleType) : 
-        'professional';
-      const prompt = stylePrompts[validStyle];
+      
+      // Safely determine which style to use without complex type assertions
+      let styleKey: StyleType = 'professional'; // Default
+      if (selectedStyle === 'casual' || selectedStyle === 'creative') {
+        styleKey = selectedStyle;
+      }
+      
+      const prompt = stylePrompts[styleKey];
       
       const { data, error } = await supabase.functions.invoke('astria', {
         body: {
@@ -120,9 +129,11 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
       
       // Reload from database to ensure we have the latest
       fetchExistingHeadshots();
-    } catch (error: any) {
-      console.error("Generation error:", error);
-      toast.error(`Failed to generate headshots: ${error.message}`);
+    } catch (error) {
+      // Use a more explicit type for the error
+      const err = error as Error;
+      console.error("Generation error:", err);
+      toast.error(`Failed to generate headshots: ${err.message}`);
     } finally {
       setIsGenerating(false);
     }
@@ -146,8 +157,9 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
       document.body.removeChild(link);
       
       toast.success("Headshot downloaded successfully!");
-    } catch (error: any) {
-      console.error("Download error:", error);
+    } catch (error) {
+      const err = error as Error;
+      console.error("Download error:", err);
       toast.error("Failed to download headshot");
     } finally {
       setIsDownloading(false);
@@ -169,8 +181,9 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
         await navigator.clipboard.writeText(selectedHeadshot);
         toast.success("Image URL copied to clipboard!");
       }
-    } catch (error: any) {
-      console.error("Share error:", error);
+    } catch (error) {
+      const err = error as Error;
+      console.error("Share error:", err);
       toast.error("Failed to share headshot");
     }
   };
