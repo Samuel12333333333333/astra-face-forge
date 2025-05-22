@@ -12,14 +12,6 @@ interface PreviewSectionProps {
   onBack: () => void;
 }
 
-// Define specific literal types to avoid deep type instantiation
-type StyleType = 'professional' | 'casual' | 'creative';
-type StylePromptsType = {
-  professional: string;
-  casual: string;
-  creative: string;
-};
-
 const PreviewSection: React.FC<PreviewSectionProps> = ({
   tuneId,
   selectedStyle,
@@ -31,8 +23,8 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
   const [selectedHeadshot, setSelectedHeadshot] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   
-  // Style prompts with explicit type definition
-  const stylePrompts: StylePromptsType = {
+  // Simple style prompt mapping without complex type dependencies
+  const stylePrompts = {
     professional: "a professional headshot of sks person with studio lighting, neutral background, business attire",
     casual: "a casual portrait of sks person with natural lighting, relaxed expression, modern setting",
     creative: "an artistic portrait of sks person with dramatic lighting, creative composition, unique setting"
@@ -79,7 +71,6 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
         setSelectedHeadshot(imageUrls[0]); // Select the first image by default
       }
     } catch (error) {
-      // Use a more explicit type for the error
       const err = error as Error;
       console.error("Error fetching headshots:", err);
       toast.error("Failed to load headshots");
@@ -97,13 +88,14 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
     try {
       setIsGenerating(true);
       
-      // Safely determine which style to use without complex type assertions
-      let styleKey: StyleType = 'professional'; // Default
-      if (selectedStyle === 'casual' || selectedStyle === 'creative') {
-        styleKey = selectedStyle;
+      // Simple style selection without type assertions
+      let promptStyle = "professional"; // default
+      if (selectedStyle === "casual" || selectedStyle === "creative") {
+        promptStyle = selectedStyle;
       }
       
-      const prompt = stylePrompts[styleKey];
+      // Type safety via direct access
+      const prompt = stylePrompts[promptStyle as keyof typeof stylePrompts];
       
       const { data, error } = await supabase.functions.invoke('astria', {
         body: {
@@ -117,7 +109,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
       
       if (error) throw new Error(error.message);
       
-      if (!data || !data.images || !Array.isArray(data.images) || data.images.length === 0) {
+      if (!data || !data.images || !Array.isArray(data.images)) {
         throw new Error("No images received from generation");
       }
       
@@ -125,12 +117,13 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
       
       // Update the headshots list with new images
       setHeadshots(data.images);
-      setSelectedHeadshot(data.images[0]);
+      if (data.images.length > 0) {
+        setSelectedHeadshot(data.images[0]);
+      }
       
       // Reload from database to ensure we have the latest
       fetchExistingHeadshots();
     } catch (error) {
-      // Use a more explicit type for the error
       const err = error as Error;
       console.error("Generation error:", err);
       toast.error(`Failed to generate headshots: ${err.message}`);
