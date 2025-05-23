@@ -673,7 +673,7 @@ async function generateHeadshots(requestBody, userId, corsHeaders) {
       return new Response(
         JSON.stringify({ error: `Generation fetch error: ${fetchError.message}` }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+        );
     }
   } catch (error) {
     console.error('Generate headshots error:', error);
