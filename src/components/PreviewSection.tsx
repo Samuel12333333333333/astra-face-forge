@@ -11,10 +11,10 @@ interface PreviewSectionProps {
   onBack: () => void;
 }
 
-// Define style types using string literal union
+// Define style types using string literals
 type StyleType = 'professional' | 'casual' | 'creative';
 
-// Define style prompts with a simple Record type
+// Define style prompts
 const STYLE_PROMPTS: Record<StyleType, string> = {
   professional: "a professional headshot of sks person with studio lighting, neutral background, business attire",
   casual: "a casual portrait of sks person with natural lighting, relaxed expression, modern setting",
@@ -73,8 +73,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
         setSelectedHeadshot(imageUrls[0]); // Select the first image by default
       }
     } catch (error) {
-      const err = error as Error;
-      console.error("Error fetching headshots:", err);
+      console.error("Error fetching headshots:", error);
       toast.error("Failed to load headshots");
     } finally {
       setIsLoading(false);
@@ -90,20 +89,20 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
     try {
       setIsGenerating(true);
       
-      // Safely cast the selected style if it matches our defined types
-      const promptStyle = (selectedStyle === 'professional' || selectedStyle === 'casual' || selectedStyle === 'creative') 
+      // Validate the selected style to match our defined types
+      const validStyle = (selectedStyle === 'professional' || selectedStyle === 'casual' || selectedStyle === 'creative') 
         ? selectedStyle as StyleType 
         : 'professional';
       
       // Get the prompt for the selected style
-      const prompt = STYLE_PROMPTS[promptStyle];
+      const prompt = STYLE_PROMPTS[validStyle];
       
       const { data, error } = await supabase.functions.invoke('astria', {
         body: {
           action: 'generate-headshots',
           tuneId: tuneId,
           prompt: prompt,
-          styleType: selectedStyle,
+          styleType: validStyle,
           numImages: 4
         }
       });
@@ -124,10 +123,9 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
       
       // Reload from database to ensure we have the latest
       fetchExistingHeadshots();
-    } catch (error) {
-      const err = error as Error;
-      console.error("Generation error:", err);
-      toast.error(`Failed to generate headshots: ${err.message}`);
+    } catch (error: any) {
+      console.error("Generation error:", error);
+      toast.error(`Failed to generate headshots: ${error.message}`);
     } finally {
       setIsGenerating(false);
     }

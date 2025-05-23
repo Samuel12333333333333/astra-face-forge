@@ -17,7 +17,8 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // Astria API key and base URL
 const ASTRIA_API_KEY = Deno.env.get('ASTRIA_API_KEY')!;
-const ASTRIA_API_BASE_URL = 'https://api.astria.ai';
+// Base Flux model ID from Astria
+const FLUX_BASE_MODEL_ID = 1504944; // Flux1.dev
 
 serve(async (req) => {
   // CORS preflight - critical for browser requests
@@ -170,14 +171,14 @@ async function handleImageUpload(requestData, corsHeaders) {
     formData.append('image', imageFile);
     
     // Send to Astria API with explicit timeout handling
-    // Updated the endpoint according to Astria Flux API docs
-    console.log(`Sending to Astria API: ${ASTRIA_API_BASE_URL}/images`);
+    // Correct endpoint for Flux API
+    console.log(`Sending to Astria API: https://api.astria.ai/images`);
     
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
     
     try {
-      const response = await fetch(`${ASTRIA_API_BASE_URL}/images`, {
+      const response = await fetch(`https://api.astria.ai/images`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${ASTRIA_API_KEY}`
@@ -198,19 +199,6 @@ async function handleImageUpload(requestData, corsHeaders) {
         console.error("Could not read response text:", e);
       }
       
-      if (!response.ok) {
-        console.error("Astria API error response:", responseText);
-        
-        return new Response(
-          JSON.stringify({ 
-            error: "Astria API error", 
-            status: response.status, 
-            details: responseText.substring(0, 500) 
-          }),
-          { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
       let result;
       try {
         result = JSON.parse(responseText);
@@ -219,6 +207,19 @@ async function handleImageUpload(requestData, corsHeaders) {
         console.error("Failed to parse JSON response:", e);
         return new Response(
           JSON.stringify({ error: "Failed to parse API response", raw: responseText.substring(0, 500) }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      // Check if the API returned an error response in a 200 OK wrapper
+      if (result.status === 404 || result.error) {
+        console.error("Astria API error in 200 response:", result);
+        return new Response(
+          JSON.stringify({ 
+            error: "Astria API error", 
+            status: result.status || 500,
+            details: result.error || "Unknown error" 
+          }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -280,26 +281,31 @@ async function createTune(requestBody, userId, corsHeaders) {
     const timeoutId = setTimeout(() => controller.abort(), 60000); // 1-minute timeout
     
     try {
-      // Updated the endpoint according to Astria Flux API docs
-      const response = await fetch(`${ASTRIA_API_BASE_URL}/tunes`, {
+      // Correct endpoint for Flux API
+      const formData = new FormData();
+      formData.append('tune[title]', `headshot_user_${userId.substring(0, 8)}`);
+      formData.append('tune[base_tune_id]', FLUX_BASE_MODEL_ID.toString()); // Flux1.dev base model
+      formData.append('tune[model_type]', 'lora');
+      formData.append('tune[name]', 'person');
+      formData.append('tune[preset]', 'flux-lora-portrait');
+      formData.append('tune[instance_prompt]', `photo of sks${userId.substring(0, 8)} person`);
+      formData.append('tune[class_prompt]', 'person');
+      
+      // Add all image IDs
+      imageIds.forEach(imageId => {
+        formData.append('tune[images][]', imageId);
+      });
+      
+      if (callbackUrl) {
+        formData.append('tune[callback]', callbackUrl);
+      }
+      
+      const response = await fetch(`https://api.astria.ai/tunes`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${ASTRIA_API_KEY}`,
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${ASTRIA_API_KEY}`
         },
-        body: JSON.stringify({
-          tune: {
-            title: `headshot_user_${userId.substring(0, 8)}`, // Truncate UUID for cleaner title
-            base_tune_id: 1504944, // Flux1.dev base model ID
-            model_type: "lora",
-            name: "person",
-            preset: "flux-lora-portrait",
-            instance_prompt: `photo of sks${userId.substring(0, 8)} person`,
-            class_prompt: "person",
-            images: imageIds,
-            callback: callbackUrl || null
-          }
-        }),
+        body: formData,
         signal: controller.signal
       });
       
@@ -428,9 +434,8 @@ async function checkTuneStatus(requestBody, corsHeaders) {
     
     console.log("Checking status for tune ID:", tuneId);
     
-    // Check status with Astria API
-    // Updated the endpoint according to Astria Flux API docs
-    const response = await fetch(`${ASTRIA_API_BASE_URL}/tunes/${tuneId}`, {
+    // Check status with Astria API - correct endpoint
+    const response = await fetch(`https://api.astria.ai/tunes/${tuneId}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${ASTRIA_API_KEY}`,
@@ -542,7 +547,7 @@ async function generateHeadshots(requestBody, userId, corsHeaders) {
     
     console.log("Using tune ID for generation:", tuneId);
     
-    // Generate images using the tune
+    // Generate images using the tune - correct endpoint for Flux API
     let promptText = `<lora:${tuneId}:1> ${prompt}`;
     
     // Add style-specific modifiers
@@ -561,12 +566,13 @@ async function generateHeadshots(requestBody, userId, corsHeaders) {
     const timeoutId = setTimeout(() => controller.abort(), 120000); // 2-minute timeout for generation
     
     try {
-      // Updated the endpoint according to Astria Flux API docs
+      // Use FormData for the request
       const formData = new FormData();
       formData.append('prompt[text]', promptText);
       formData.append('prompt[num_images]', String(numImages || 4));
       
-      const response = await fetch(`${ASTRIA_API_BASE_URL}/tunes/1504944/prompts`, {
+      // Call the correct Flux API endpoint
+      const response = await fetch(`https://api.astria.ai/tunes/${FLUX_BASE_MODEL_ID}/prompts`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${ASTRIA_API_KEY}`
