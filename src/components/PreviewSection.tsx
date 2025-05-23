@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
@@ -21,8 +20,8 @@ interface PreviewSectionProps {
 // Define style types explicitly to avoid deep instantiation errors
 type StyleType = 'professional' | 'casual' | 'creative';
 
-// Define style prompts as a simple mapping
-const STYLE_PROMPTS: { [key in StyleType]: string } = {
+// Define style prompts as a simple mapping with explicit type annotation
+const STYLE_PROMPTS: Record<StyleType, string> = {
   professional: "a professional headshot of sks person with studio lighting, neutral background, business attire",
   casual: "a casual portrait of sks person with natural lighting, relaxed expression, modern setting",
   creative: "an artistic portrait of sks person with dramatic lighting, creative composition, unique setting"
@@ -96,13 +95,13 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
     try {
       setIsGenerating(true);
       
-      // Validate style using simple string comparison
+      // Validate style using a simple direct check
       const validStyles: StyleType[] = ['professional', 'casual', 'creative'];
-      const styleToUse = validStyles.includes(selectedStyle as StyleType) 
-        ? selectedStyle as StyleType
+      const styleToUse: StyleType = validStyles.includes(selectedStyle as StyleType) 
+        ? (selectedStyle as StyleType)
         : 'professional';
       
-      // Get the prompt for the style
+      // Get the prompt for the style with direct access
       const prompt = STYLE_PROMPTS[styleToUse];
       
       const { data, error } = await supabase.functions.invoke('astria', {
