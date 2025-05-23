@@ -170,13 +170,14 @@ async function handleImageUpload(requestData, corsHeaders) {
     formData.append('image', imageFile);
     
     // Send to Astria API with explicit timeout handling
-    console.log(`Sending to Astria API: ${ASTRIA_API_BASE_URL}/api/v1/images`);
+    // FIXED: Updated the endpoint from /api/v1/images to /v1/images
+    console.log(`Sending to Astria API: ${ASTRIA_API_BASE_URL}/v1/images`);
     
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
     
     try {
-      const response = await fetch(`${ASTRIA_API_BASE_URL}/api/v1/images`, {
+      const response = await fetch(`${ASTRIA_API_BASE_URL}/v1/images`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${ASTRIA_API_KEY}`
@@ -188,20 +189,23 @@ async function handleImageUpload(requestData, corsHeaders) {
       clearTimeout(timeoutId);
       console.log(`Astria API response status: ${response.status}`);
       
+      // Get the response text first for better error logging
+      let responseText = "";
+      try {
+        responseText = await response.text();
+        console.log("Astria API response body:", responseText);
+      } catch (e) {
+        console.error("Could not read response text:", e);
+      }
+      
       if (!response.ok) {
-        let errorText = "";
-        try {
-          errorText = await response.text();
-          console.error("Astria API error response:", errorText);
-        } catch (e) {
-          errorText = "Could not read error response";
-        }
+        console.error("Astria API error response:", responseText);
         
         return new Response(
           JSON.stringify({ 
             error: "Astria API error", 
             status: response.status, 
-            details: errorText.substring(0, 500) 
+            details: responseText.substring(0, 500) 
           }),
           { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
@@ -209,14 +213,12 @@ async function handleImageUpload(requestData, corsHeaders) {
       
       let result;
       try {
-        result = await response.json();
+        result = JSON.parse(responseText);
         console.log("Astria API success response:", JSON.stringify(result));
       } catch (e) {
         console.error("Failed to parse JSON response:", e);
-        const text = await response.text();
-        console.log("Raw response:", text);
         return new Response(
-          JSON.stringify({ error: "Failed to parse API response", raw: text.substring(0, 500) }),
+          JSON.stringify({ error: "Failed to parse API response", raw: responseText.substring(0, 500) }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -278,7 +280,8 @@ async function createTune(requestBody, userId, corsHeaders) {
     const timeoutId = setTimeout(() => controller.abort(), 60000); // 1-minute timeout
     
     try {
-      const response = await fetch(`${ASTRIA_API_BASE_URL}/api/v1/tunes`, {
+      // FIXED: Updated the endpoint from /api/v1/tunes to /v1/tunes
+      const response = await fetch(`${ASTRIA_API_BASE_URL}/v1/tunes`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${ASTRIA_API_KEY}`,
@@ -297,20 +300,23 @@ async function createTune(requestBody, userId, corsHeaders) {
       clearTimeout(timeoutId);
       console.log(`Astria tune creation response status: ${response.status}`);
       
+      // Get the response text first for better error logging
+      let responseText = "";
+      try {
+        responseText = await response.text();
+        console.log("Astria tune creation response body:", responseText);
+      } catch (e) {
+        console.error("Could not read response text:", e);
+      }
+      
       if (!response.ok) {
-        let errorText = "";
-        try {
-          errorText = await response.text();
-        } catch (e) {
-          errorText = "Could not read error response";
-        }
-        console.error("Astria tune creation error:", response.status, errorText);
+        console.error("Astria tune creation error:", response.status, responseText);
         
         return new Response(
           JSON.stringify({ 
             error: "Astria tune creation failed", 
             status: response.status, 
-            details: errorText.substring(0, 500) 
+            details: responseText.substring(0, 500) 
           }),
           { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
@@ -318,14 +324,12 @@ async function createTune(requestBody, userId, corsHeaders) {
       
       let result;
       try {
-        result = await response.json();
+        result = JSON.parse(responseText);
         console.log("Astria create tune success:", JSON.stringify(result));
       } catch (e) {
         console.error("Failed to parse JSON response:", e);
-        const text = await response.text();
-        console.log("Raw response:", text);
         return new Response(
-          JSON.stringify({ error: "Failed to parse API response", raw: text.substring(0, 500) }),
+          JSON.stringify({ error: "Failed to parse API response", raw: responseText.substring(0, 500) }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -419,7 +423,8 @@ async function checkTuneStatus(requestBody, corsHeaders) {
     console.log("Checking status for tune ID:", tuneId);
     
     // Check status with Astria API
-    const response = await fetch(`${ASTRIA_API_BASE_URL}/api/v1/tunes/${tuneId}`, {
+    // FIXED: Updated the endpoint from /api/v1/tunes/{tuneId} to /v1/tunes/{tuneId}
+    const response = await fetch(`${ASTRIA_API_BASE_URL}/v1/tunes/${tuneId}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${ASTRIA_API_KEY}`,
@@ -428,20 +433,23 @@ async function checkTuneStatus(requestBody, corsHeaders) {
     
     console.log(`Astria status check response status: ${response.status}`);
     
+    // Get the response text first for better error logging
+    let responseText = "";
+    try {
+      responseText = await response.text();
+      console.log("Astria status check response body:", responseText);
+    } catch (e) {
+      console.error("Could not read response text:", e);
+    }
+    
     if (!response.ok) {
-      let errorText = "";
-      try {
-        errorText = await response.text();
-      } catch (e) {
-        errorText = "Could not read error response";
-      }
-      console.error("Astria status check error:", response.status, errorText);
+      console.error("Astria status check error:", response.status, responseText);
       
       return new Response(
         JSON.stringify({ 
           error: "Astria status check failed", 
           status: response.status, 
-          details: errorText.substring(0, 500) 
+          details: responseText.substring(0, 500) 
         }),
         { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -449,14 +457,12 @@ async function checkTuneStatus(requestBody, corsHeaders) {
     
     let result;
     try {
-      result = await response.json();
+      result = JSON.parse(responseText);
       console.log("Astria tune status response:", JSON.stringify(result));
     } catch (e) {
       console.error("Failed to parse JSON response:", e);
-      const text = await response.text();
-      console.log("Raw response:", text);
       return new Response(
-        JSON.stringify({ error: "Failed to parse API response", raw: text.substring(0, 500) }),
+        JSON.stringify({ error: "Failed to parse API response", raw: responseText.substring(0, 500) }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -549,7 +555,8 @@ async function generateHeadshots(requestBody, userId, corsHeaders) {
     const timeoutId = setTimeout(() => controller.abort(), 120000); // 2-minute timeout for generation
     
     try {
-      const response = await fetch(`${ASTRIA_API_BASE_URL}/api/v1/tunes/${tuneId}/prompts`, {
+      // FIXED: Updated the endpoint from /api/v1/tunes/{tuneId}/prompts to /v1/tunes/{tuneId}/prompts
+      const response = await fetch(`${ASTRIA_API_BASE_URL}/v1/tunes/${tuneId}/prompts`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${ASTRIA_API_KEY}`,
@@ -565,20 +572,23 @@ async function generateHeadshots(requestBody, userId, corsHeaders) {
       clearTimeout(timeoutId);
       console.log(`Astria generation response status: ${response.status}`);
       
+      // Get the response text first for better error logging
+      let responseText = "";
+      try {
+        responseText = await response.text();
+        console.log("Astria generation response body:", responseText.substring(0, 500));
+      } catch (e) {
+        console.error("Could not read response text:", e);
+      }
+      
       if (!response.ok) {
-        let errorText = "";
-        try {
-          errorText = await response.text();
-        } catch (e) {
-          errorText = "Could not read error response";
-        }
-        console.error("Astria generation error:", response.status, errorText);
+        console.error("Astria generation error:", response.status, responseText);
         
         return new Response(
           JSON.stringify({ 
             error: "Astria generation failed", 
             status: response.status, 
-            details: errorText.substring(0, 500) 
+            details: responseText.substring(0, 500) 
           }),
           { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
@@ -586,14 +596,12 @@ async function generateHeadshots(requestBody, userId, corsHeaders) {
       
       let result;
       try {
-        result = await response.json();
+        result = JSON.parse(responseText);
         console.log("Astria generation success, received result:", JSON.stringify(result).substring(0, 300) + "...");
       } catch (e) {
         console.error("Failed to parse JSON response:", e);
-        const text = await response.text();
-        console.log("Raw response:", text.substring(0, 500));
         return new Response(
-          JSON.stringify({ error: "Failed to parse API response", raw: text.substring(0, 500) }),
+          JSON.stringify({ error: "Failed to parse API response", raw: responseText.substring(0, 500) }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -673,7 +681,7 @@ async function generateHeadshots(requestBody, userId, corsHeaders) {
       return new Response(
         JSON.stringify({ error: `Generation fetch error: ${fetchError.message}` }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+      );
     }
   } catch (error) {
     console.error('Generate headshots error:', error);

@@ -11,10 +11,14 @@ interface PreviewSectionProps {
   onBack: () => void;
 }
 
-// Define a concrete type for style prompts to avoid excessive type instantiation
-type StylePromptKey = 'professional' | 'casual' | 'creative';
-type StylePromptMap = {
-  [key in StylePromptKey]: string;
+// Define literal string type keys for style prompts to avoid excessive type instantiation
+type StyleKey = 'professional' | 'casual' | 'creative';
+
+// Define the style prompt map with specific string literals
+const STYLE_PROMPTS: Record<StyleKey, string> = {
+  professional: "a professional headshot of sks person with studio lighting, neutral background, business attire",
+  casual: "a casual portrait of sks person with natural lighting, relaxed expression, modern setting",
+  creative: "an artistic portrait of sks person with dramatic lighting, creative composition, unique setting"
 };
 
 const PreviewSection: React.FC<PreviewSectionProps> = ({
@@ -27,13 +31,6 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
   const [headshots, setHeadshots] = useState<string[]>([]);
   const [selectedHeadshot, setSelectedHeadshot] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
-  
-  // Define style prompts with concrete type annotation
-  const stylePrompts: StylePromptMap = {
-    professional: "a professional headshot of sks person with studio lighting, neutral background, business attire",
-    casual: "a casual portrait of sks person with natural lighting, relaxed expression, modern setting",
-    creative: "an artistic portrait of sks person with dramatic lighting, creative composition, unique setting"
-  };
   
   useEffect(() => {
     if (tuneId) {
@@ -93,15 +90,15 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
     try {
       setIsGenerating(true);
       
-      // Use type guards to safely determine the prompt style
-      let promptStyle: StylePromptKey = 'professional'; // default
+      // Cast the selected style to a StyleKey if it matches our known styles
+      let promptStyle: StyleKey = 'professional'; // default
       
       if (selectedStyle === 'casual' || selectedStyle === 'creative') {
         promptStyle = selectedStyle;
       }
       
-      // Safe access with properly typed key
-      const prompt = stylePrompts[promptStyle];
+      // Get the prompt for the selected style
+      const prompt = STYLE_PROMPTS[promptStyle];
       
       const { data, error } = await supabase.functions.invoke('astria', {
         body: {
