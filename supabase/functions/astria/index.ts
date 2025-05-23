@@ -553,9 +553,8 @@ async function generateHeadshots(requestBody, userId, corsHeaders) {
     
     console.log("Using tune ID for generation:", tuneId);
     
-    // Generate images using the tune - use the correct tune ID format
-    // The tune ID passed should be the actual string ID (e.g. "ohwxx") and not the numeric LoRA model ID
-    let promptText = `<lora:${tuneId}:1> ${prompt}`;
+    // Create the prompt with style-specific additions
+    let promptText = prompt;
     
     // Add style-specific modifiers
     if (styleType === 'professional') {

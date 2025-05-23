@@ -18,12 +18,11 @@ interface PreviewSectionProps {
   onBack: () => void;
 }
 
-// Define literal types for styles explicitly to avoid deep type instantiation
+// Fixed type definitions to avoid deep instantiation errors
 type StyleType = 'professional' | 'casual' | 'creative';
-const VALID_STYLES: readonly StyleType[] = ['professional', 'casual', 'creative'] as const;
 
-// Define style prompts with a simple mapped object
-const STYLE_PROMPTS: Record<StyleType, string> = {
+// Define style prompts as a simple object
+const STYLE_PROMPTS = {
   professional: "a professional headshot of sks person with studio lighting, neutral background, business attire",
   casual: "a casual portrait of sks person with natural lighting, relaxed expression, modern setting",
   creative: "an artistic portrait of sks person with dramatic lighting, creative composition, unique setting"
@@ -97,13 +96,15 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
     try {
       setIsGenerating(true);
       
-      // Safely validate the style using type assertion
-      const styleToUse = (VALID_STYLES.includes(selectedStyle as StyleType) 
+      // Use simple style validation
+      const styleToUse = (selectedStyle === 'professional' || 
+                          selectedStyle === 'casual' || 
+                          selectedStyle === 'creative') 
         ? selectedStyle 
-        : 'professional') as StyleType;
+        : 'professional';
       
-      // Get the prompt for the validated style
-      const prompt = STYLE_PROMPTS[styleToUse];
+      // Get the prompt for the style
+      const prompt = STYLE_PROMPTS[styleToUse as StyleType];
       
       const { data, error } = await supabase.functions.invoke('astria', {
         body: {
