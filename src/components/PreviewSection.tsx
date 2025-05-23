@@ -1,10 +1,16 @@
 
 import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, Download, Loader2, RefreshCw, Share2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+
+// Import smaller components
+import SelectedHeadshotDisplay from "./headshots/SelectedHeadshotDisplay";
+import HeadshotGallery from "./headshots/HeadshotGallery";
+import HeadshotActionButtons from "./headshots/HeadshotActionButtons";
+import EmptyHeadshotState from "./headshots/EmptyHeadshotState";
+import StyleInfoCard from "./headshots/StyleInfoCard";
 
 interface PreviewSectionProps {
   tuneId: string | null;
@@ -15,7 +21,7 @@ interface PreviewSectionProps {
 // Define style types using string literals
 type StyleType = 'professional' | 'casual' | 'creative';
 
-// Define style prompts - using Record with concrete StyleType
+// Define style prompts using Record with concrete StyleType
 const STYLE_PROMPTS: Record<StyleType, string> = {
   professional: "a professional headshot of sks person with studio lighting, neutral background, business attire",
   casual: "a casual portrait of sks person with natural lighting, relaxed expression, modern setting",
@@ -90,12 +96,11 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
     try {
       setIsGenerating(true);
       
-      // Use type assertion instead of validation to fix infinite type instantiation
-      const validStyle = (selectedStyle === 'professional' || 
-                          selectedStyle === 'casual' || 
-                          selectedStyle === 'creative') 
-                          ? (selectedStyle as StyleType) 
-                          : ('professional' as StyleType);
+      // Type assertion to fix infinite type instantiation
+      const styleOptions: StyleType[] = ['professional', 'casual', 'creative'];
+      const validStyle = styleOptions.includes(selectedStyle as StyleType) 
+        ? (selectedStyle as StyleType) 
+        : ('professional' as StyleType);
       
       // Get the prompt for the selected style
       const prompt = STYLE_PROMPTS[validStyle];
@@ -195,143 +200,34 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : headshots.length === 0 ? (
-              <div className="h-64 w-full flex flex-col items-center justify-center text-center p-4 rounded-lg bg-muted/50">
-                <p className="text-muted-foreground mb-4">No headshots have been generated yet.</p>
-                <Button 
-                  onClick={generateHeadshots} 
-                  disabled={isGenerating || !tuneId}
-                  className="bg-brand-600 hover:bg-brand-700"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                      Generate Headshots
-                    </>
-                  )}
-                </Button>
-              </div>
+              <EmptyHeadshotState 
+                onGenerate={generateHeadshots} 
+                isGenerating={isGenerating} 
+                hasTuneId={!!tuneId}
+              />
             ) : (
               <>
-                <div className="aspect-square w-full max-w-md mb-4 rounded-lg overflow-hidden border">
-                  {selectedHeadshot && (
-                    <img 
-                      src={selectedHeadshot} 
-                      alt="Selected AI Headshot" 
-                      className="object-cover w-full h-full" 
-                      onError={(e) => {
-                        console.error("Image load error");
-                        e.currentTarget.src = "https://via.placeholder.com/400?text=Image+Load+Error";
-                      }}
-                    />
-                  )}
-                </div>
-                
-                <div className="flex flex-wrap gap-2 mb-6">
-                  {headshots.slice(0, 8).map((url, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setSelectedHeadshot(url)}
-                      className={`aspect-square w-16 h-16 rounded-lg overflow-hidden border-2 ${
-                        url === selectedHeadshot ? 'border-brand-600' : 'border-transparent'
-                      }`}
-                    >
-                      <img 
-                        src={url} 
-                        alt={`Headshot ${index + 1}`} 
-                        className="object-cover w-full h-full"
-                        onError={(e) => {
-                          console.error("Thumbnail load error");
-                          e.currentTarget.src = "https://via.placeholder.com/100?text=Error";
-                        }} 
-                      />
-                    </button>
-                  ))}
-                </div>
-                
-                <div className="flex flex-col sm:flex-row gap-2 w-full">
-                  <Button 
-                    onClick={generateHeadshots} 
-                    disabled={isGenerating}
-                    className="bg-brand-600 hover:bg-brand-700"
-                  >
-                    {isGenerating ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="mr-2 h-4 w-4" />
-                        Generate More
-                      </>
-                    )}
-                  </Button>
-                  
-                  <Button 
-                    onClick={handleDownload} 
-                    disabled={!selectedHeadshot || isDownloading}
-                    variant="outline"
-                  >
-                    {isDownloading ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Download className="mr-2 h-4 w-4" />
-                    )}
-                    Download
-                  </Button>
-                  
-                  <Button 
-                    onClick={handleShare} 
-                    disabled={!selectedHeadshot}
-                    variant="outline"
-                  >
-                    <Share2 className="mr-2 h-4 w-4" />
-                    Share
-                  </Button>
-                </div>
+                <SelectedHeadshotDisplay imageUrl={selectedHeadshot} />
+                <HeadshotGallery 
+                  headshots={headshots} 
+                  selectedHeadshot={selectedHeadshot} 
+                  onSelectHeadshot={setSelectedHeadshot} 
+                />
+                <HeadshotActionButtons 
+                  onGenerate={generateHeadshots} 
+                  onDownload={handleDownload} 
+                  onShare={handleShare}
+                  isGenerating={isGenerating}
+                  isDownloading={isDownloading}
+                  hasSelectedHeadshot={!!selectedHeadshot}
+                />
               </>
             )}
           </CardContent>
         </Card>
         
         <div className="w-full md:w-1/3">
-          <Card>
-            <CardContent className="pt-6">
-              <h3 className="text-lg font-medium mb-4">Selected Style</h3>
-              
-              <div className="mb-4 p-4 bg-muted/50 rounded-lg">
-                <p className="font-medium capitalize">
-                  {selectedStyle || "Default"} Style
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {selectedStyle === 'professional' ? 
-                    'Professional lighting with neutral background' : 
-                    selectedStyle === 'casual' ? 
-                    'Natural lighting with casual setting' : 
-                    selectedStyle === 'creative' ? 
-                    'Artistic lighting with creative composition' : 
-                    'Standard headshot with good lighting'
-                  }
-                </p>
-              </div>
-              
-              <div className="mt-6 space-y-2">
-                <Button 
-                  onClick={onBack} 
-                  variant="outline" 
-                  className="w-full"
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Change Style
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <StyleInfoCard selectedStyle={selectedStyle} onBack={onBack} />
         </div>
       </div>
     </div>
