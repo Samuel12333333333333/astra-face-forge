@@ -11,11 +11,11 @@ interface PreviewSectionProps {
   onBack: () => void;
 }
 
-// Define literal string type keys for style prompts to avoid excessive type instantiation
-type StyleKey = 'professional' | 'casual' | 'creative';
+// Define style types using string literal union
+type StyleType = 'professional' | 'casual' | 'creative';
 
-// Define the style prompt map with specific string literals
-const STYLE_PROMPTS: Record<StyleKey, string> = {
+// Define style prompts with a simple Record type
+const STYLE_PROMPTS: Record<StyleType, string> = {
   professional: "a professional headshot of sks person with studio lighting, neutral background, business attire",
   casual: "a casual portrait of sks person with natural lighting, relaxed expression, modern setting",
   creative: "an artistic portrait of sks person with dramatic lighting, creative composition, unique setting"
@@ -90,12 +90,10 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
     try {
       setIsGenerating(true);
       
-      // Cast the selected style to a StyleKey if it matches our known styles
-      let promptStyle: StyleKey = 'professional'; // default
-      
-      if (selectedStyle === 'casual' || selectedStyle === 'creative') {
-        promptStyle = selectedStyle;
-      }
+      // Safely cast the selected style if it matches our defined types
+      const promptStyle = (selectedStyle === 'professional' || selectedStyle === 'casual' || selectedStyle === 'creative') 
+        ? selectedStyle as StyleType 
+        : 'professional';
       
       // Get the prompt for the selected style
       const prompt = STYLE_PROMPTS[promptStyle];

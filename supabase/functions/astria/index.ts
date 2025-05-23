@@ -170,14 +170,14 @@ async function handleImageUpload(requestData, corsHeaders) {
     formData.append('image', imageFile);
     
     // Send to Astria API with explicit timeout handling
-    // FIXED: Updated the endpoint from /api/v1/images to /v1/images
-    console.log(`Sending to Astria API: ${ASTRIA_API_BASE_URL}/v1/images`);
+    // Updated the endpoint according to Astria Flux API docs
+    console.log(`Sending to Astria API: ${ASTRIA_API_BASE_URL}/images`);
     
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
     
     try {
-      const response = await fetch(`${ASTRIA_API_BASE_URL}/v1/images`, {
+      const response = await fetch(`${ASTRIA_API_BASE_URL}/images`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${ASTRIA_API_KEY}`
@@ -280,19 +280,25 @@ async function createTune(requestBody, userId, corsHeaders) {
     const timeoutId = setTimeout(() => controller.abort(), 60000); // 1-minute timeout
     
     try {
-      // FIXED: Updated the endpoint from /api/v1/tunes to /v1/tunes
-      const response = await fetch(`${ASTRIA_API_BASE_URL}/v1/tunes`, {
+      // Updated the endpoint according to Astria Flux API docs
+      const response = await fetch(`${ASTRIA_API_BASE_URL}/tunes`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${ASTRIA_API_KEY}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          title: `headshot_user_${userId.substring(0, 8)}`, // Truncate UUID for cleaner title
-          instance_prompt: `photo of sks${userId.substring(0, 8)} person`,
-          class_prompt: "person",
-          images: imageIds,
-          callback_url: callbackUrl || null
+          tune: {
+            title: `headshot_user_${userId.substring(0, 8)}`, // Truncate UUID for cleaner title
+            base_tune_id: 1504944, // Flux1.dev base model ID
+            model_type: "lora",
+            name: "person",
+            preset: "flux-lora-portrait",
+            instance_prompt: `photo of sks${userId.substring(0, 8)} person`,
+            class_prompt: "person",
+            images: imageIds,
+            callback: callbackUrl || null
+          }
         }),
         signal: controller.signal
       });
@@ -423,8 +429,8 @@ async function checkTuneStatus(requestBody, corsHeaders) {
     console.log("Checking status for tune ID:", tuneId);
     
     // Check status with Astria API
-    // FIXED: Updated the endpoint from /api/v1/tunes/{tuneId} to /v1/tunes/{tuneId}
-    const response = await fetch(`${ASTRIA_API_BASE_URL}/v1/tunes/${tuneId}`, {
+    // Updated the endpoint according to Astria Flux API docs
+    const response = await fetch(`${ASTRIA_API_BASE_URL}/tunes/${tuneId}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${ASTRIA_API_KEY}`,
@@ -537,15 +543,15 @@ async function generateHeadshots(requestBody, userId, corsHeaders) {
     console.log("Using tune ID for generation:", tuneId);
     
     // Generate images using the tune
-    let promptText = prompt;
+    let promptText = `<lora:${tuneId}:1> ${prompt}`;
     
     // Add style-specific modifiers
     if (styleType === 'professional') {
-      promptText = `${prompt}, professional studio lighting, neutral background, business attire, DSLR, high resolution`;
+      promptText = `<lora:${tuneId}:1> ${prompt}, professional studio lighting, neutral background, business attire, DSLR, high resolution`;
     } else if (styleType === 'casual') {
-      promptText = `${prompt}, natural lighting, casual attire, modern setting, Canon 5D, crisp focus`;
+      promptText = `<lora:${tuneId}:1> ${prompt}, natural lighting, casual attire, modern setting, Canon 5D, crisp focus`;
     } else if (styleType === 'creative') {
-      promptText = `${prompt}, artistic lighting, creative setting, high contrast, professional photography`;
+      promptText = `<lora:${tuneId}:1> ${prompt}, artistic lighting, creative setting, high contrast, professional photography`;
     }
     
     console.log("Generating with prompt:", promptText);
@@ -555,17 +561,17 @@ async function generateHeadshots(requestBody, userId, corsHeaders) {
     const timeoutId = setTimeout(() => controller.abort(), 120000); // 2-minute timeout for generation
     
     try {
-      // FIXED: Updated the endpoint from /api/v1/tunes/{tuneId}/prompts to /v1/tunes/{tuneId}/prompts
-      const response = await fetch(`${ASTRIA_API_BASE_URL}/v1/tunes/${tuneId}/prompts`, {
+      // Updated the endpoint according to Astria Flux API docs
+      const formData = new FormData();
+      formData.append('prompt[text]', promptText);
+      formData.append('prompt[num_images]', String(numImages || 4));
+      
+      const response = await fetch(`${ASTRIA_API_BASE_URL}/tunes/1504944/prompts`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${ASTRIA_API_KEY}`,
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${ASTRIA_API_KEY}`
         },
-        body: JSON.stringify({
-          prompt: promptText,
-          num_images: numImages || 4
-        }),
+        body: formData,
         signal: controller.signal
       });
       
