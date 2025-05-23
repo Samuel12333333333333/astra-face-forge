@@ -96,11 +96,15 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
     try {
       setIsGenerating(true);
       
-      // Fixed: Properly validate and cast the style type to avoid infinite type instantiation
-      const styleOptions: StyleType[] = ['professional', 'casual', 'creative'];
-      const validStyle = styleOptions.includes(selectedStyle as StyleType) 
-        ? selectedStyle as StyleType
-        : 'professional' as StyleType;
+      // Properly validate and cast the style type to avoid infinite type instantiation
+      const validStyles = ['professional', 'casual', 'creative'];
+      
+      // Use type assertion after validation to prevent TypeScript circular reference
+      let validStyle: StyleType = 'professional';
+      
+      if (selectedStyle && validStyles.includes(selectedStyle)) {
+        validStyle = selectedStyle as StyleType;
+      }
       
       // Get the prompt for the selected style
       const prompt = STYLE_PROMPTS[validStyle];
