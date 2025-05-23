@@ -81,7 +81,7 @@ serve(async (req) => {
     // Route requests based on action
     switch(action) {
       case 'upload-images':
-        return await handleImageUpload(requestBody, corsHeaders);
+        return await handleImageUpload(requestBody, corsHeaders, userId);
       case 'create-tune':
         return await createTune(requestBody, userId, corsHeaders);
       case 'generate-headshots':
@@ -104,7 +104,7 @@ serve(async (req) => {
   }
 });
 
-async function handleImageUpload(requestData, corsHeaders) {
+async function handleImageUpload(requestData, corsHeaders, userId) {
   try {
     console.log("Processing image upload");
     
@@ -117,7 +117,16 @@ async function handleImageUpload(requestData, corsHeaders) {
       );
     }
     
-    const { image: base64Data, filename, contentType } = requestData;
+    // Check if we have a tuneId for the API endpoint
+    if (!requestData.tuneId) {
+      console.error("No tuneId provided for image upload");
+      return new Response(
+        JSON.stringify({ error: "tuneId is required for image upload" }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    const { image: base64Data, filename, contentType, tuneId } = requestData;
     
     // Validate the base64 data - accept both data:image and raw base64
     if (!base64Data || typeof base64Data !== 'string') {
@@ -170,13 +179,13 @@ async function handleImageUpload(requestData, corsHeaders) {
     formData.append('image', imageFile);
     
     // Send to Astria API with explicit timeout handling
-    console.log(`Sending to Astria API: https://api.astria.ai/images`);
+    console.log(`Sending to Astria API: https://api.astria.ai/tunes/${tuneId}/images`);
     
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
     
     try {
-      const response = await fetch(`https://api.astria.ai/images`, {
+      const response = await fetch(`https://api.astria.ai/tunes/${tuneId}/images`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${ASTRIA_API_KEY}`

@@ -18,15 +18,15 @@ interface PreviewSectionProps {
   onBack: () => void;
 }
 
-// Define style types more explicitly to avoid circular type references
+// Define style types explicitly as a literal type union instead of using a circular reference
 type StyleType = 'professional' | 'casual' | 'creative';
 
-// Define style prompts using Record with concrete StyleType
-const STYLE_PROMPTS: Record<StyleType, string> = {
+// Define style prompts using a simple object with typed keys
+const STYLE_PROMPTS = {
   professional: "a professional headshot of sks person with studio lighting, neutral background, business attire",
   casual: "a casual portrait of sks person with natural lighting, relaxed expression, modern setting",
   creative: "an artistic portrait of sks person with dramatic lighting, creative composition, unique setting"
-};
+} as const;
 
 const PreviewSection: React.FC<PreviewSectionProps> = ({
   tuneId,
@@ -96,18 +96,12 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
     try {
       setIsGenerating(true);
       
-      // Properly validate and cast the style type to avoid infinite type instantiation
+      // Simple validation of style without complex type manipulation
       const validStyles = ['professional', 'casual', 'creative'];
+      const validStyle = validStyles.includes(selectedStyle) ? selectedStyle : 'professional';
       
-      // Use type assertion after validation to prevent TypeScript circular reference
-      let validStyle: StyleType = 'professional';
-      
-      if (selectedStyle && validStyles.includes(selectedStyle)) {
-        validStyle = selectedStyle as StyleType;
-      }
-      
-      // Get the prompt for the selected style
-      const prompt = STYLE_PROMPTS[validStyle];
+      // Safe access to the prompt using the validated style
+      const prompt = STYLE_PROMPTS[validStyle as StyleType];
       
       const { data, error } = await supabase.functions.invoke('astria', {
         body: {
