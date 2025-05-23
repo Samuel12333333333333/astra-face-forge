@@ -18,15 +18,16 @@ interface PreviewSectionProps {
   onBack: () => void;
 }
 
-// Define style types explicitly as a literal type union instead of using a circular reference
+// Define literal types for styles
 type StyleType = 'professional' | 'casual' | 'creative';
+const VALID_STYLES: StyleType[] = ['professional', 'casual', 'creative'];
 
-// Define style prompts using a simple object with typed keys
-const STYLE_PROMPTS = {
+// Define style prompts with string literal keys
+const STYLE_PROMPTS: { [key in StyleType]: string } = {
   professional: "a professional headshot of sks person with studio lighting, neutral background, business attire",
   casual: "a casual portrait of sks person with natural lighting, relaxed expression, modern setting",
   creative: "an artistic portrait of sks person with dramatic lighting, creative composition, unique setting"
-} as const;
+};
 
 const PreviewSection: React.FC<PreviewSectionProps> = ({
   tuneId,
@@ -96,19 +97,20 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
     try {
       setIsGenerating(true);
       
-      // Simple validation of style without complex type manipulation
-      const validStyles = ['professional', 'casual', 'creative'];
-      const validStyle = validStyles.includes(selectedStyle) ? selectedStyle : 'professional';
+      // Simple style validation
+      const styleToUse = VALID_STYLES.includes(selectedStyle as StyleType) 
+        ? selectedStyle as StyleType 
+        : 'professional';
       
-      // Safe access to the prompt using the validated style
-      const prompt = STYLE_PROMPTS[validStyle as StyleType];
+      // Get the prompt for the validated style
+      const prompt = STYLE_PROMPTS[styleToUse];
       
       const { data, error } = await supabase.functions.invoke('astria', {
         body: {
           action: 'generate-headshots',
           tuneId: tuneId,
           prompt: prompt,
-          styleType: validStyle,
+          styleType: styleToUse,
           numImages: 4
         }
       });
