@@ -18,7 +18,7 @@ interface PreviewSectionProps {
   onBack: () => void;
 }
 
-// Define style types using string literals
+// Define style types more explicitly to avoid circular type references
 type StyleType = 'professional' | 'casual' | 'creative';
 
 // Define style prompts using Record with concrete StyleType
@@ -96,11 +96,11 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
     try {
       setIsGenerating(true);
       
-      // Type assertion to fix infinite type instantiation
+      // Fixed: Properly validate and cast the style type to avoid infinite type instantiation
       const styleOptions: StyleType[] = ['professional', 'casual', 'creative'];
       const validStyle = styleOptions.includes(selectedStyle as StyleType) 
-        ? (selectedStyle as StyleType) 
-        : ('professional' as StyleType);
+        ? selectedStyle as StyleType
+        : 'professional' as StyleType;
       
       // Get the prompt for the selected style
       const prompt = STYLE_PROMPTS[validStyle];
