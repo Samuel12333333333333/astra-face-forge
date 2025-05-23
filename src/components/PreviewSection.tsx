@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +11,12 @@ interface PreviewSectionProps {
   onBack: () => void;
 }
 
+// Define a concrete type for style prompts to avoid excessive type instantiation
+type StylePromptKey = 'professional' | 'casual' | 'creative';
+type StylePromptMap = {
+  [key in StylePromptKey]: string;
+};
+
 const PreviewSection: React.FC<PreviewSectionProps> = ({
   tuneId,
   selectedStyle,
@@ -23,8 +28,8 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
   const [selectedHeadshot, setSelectedHeadshot] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   
-  // Simple style prompt mapping without complex type dependencies
-  const stylePrompts = {
+  // Define style prompts with concrete type annotation
+  const stylePrompts: StylePromptMap = {
     professional: "a professional headshot of sks person with studio lighting, neutral background, business attire",
     casual: "a casual portrait of sks person with natural lighting, relaxed expression, modern setting",
     creative: "an artistic portrait of sks person with dramatic lighting, creative composition, unique setting"
@@ -88,14 +93,15 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
     try {
       setIsGenerating(true);
       
-      // Simple style selection without type assertions
-      let promptStyle = "professional"; // default
-      if (selectedStyle === "casual" || selectedStyle === "creative") {
+      // Use type guards to safely determine the prompt style
+      let promptStyle: StylePromptKey = 'professional'; // default
+      
+      if (selectedStyle === 'casual' || selectedStyle === 'creative') {
         promptStyle = selectedStyle;
       }
       
-      // Type safety via direct access
-      const prompt = stylePrompts[promptStyle as keyof typeof stylePrompts];
+      // Safe access with properly typed key
+      const prompt = stylePrompts[promptStyle];
       
       const { data, error } = await supabase.functions.invoke('astria', {
         body: {
