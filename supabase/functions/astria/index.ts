@@ -553,16 +553,17 @@ async function generateHeadshots(requestBody, userId, corsHeaders) {
     
     console.log("Using tune ID for generation:", tuneId);
     
-    // Generate images using the tune - correct endpoint for Flux API
+    // Generate images using the tune - use the correct tune ID format
+    // The tune ID passed should be the actual string ID (e.g. "ohwxx") and not the numeric LoRA model ID
     let promptText = `<lora:${tuneId}:1> ${prompt}`;
     
     // Add style-specific modifiers
     if (styleType === 'professional') {
-      promptText = `<lora:${tuneId}:1> ${prompt}, professional studio lighting, neutral background, business attire, DSLR, high resolution`;
+      promptText = `${prompt}, professional studio lighting, neutral background, business attire, DSLR, high resolution`;
     } else if (styleType === 'casual') {
-      promptText = `<lora:${tuneId}:1> ${prompt}, natural lighting, casual attire, modern setting, Canon 5D, crisp focus`;
+      promptText = `${prompt}, natural lighting, casual attire, modern setting, Canon 5D, crisp focus`;
     } else if (styleType === 'creative') {
-      promptText = `<lora:${tuneId}:1> ${prompt}, artistic lighting, creative setting, high contrast, professional photography`;
+      promptText = `${prompt}, artistic lighting, creative setting, high contrast, professional photography`;
     }
     
     console.log("Generating with prompt:", promptText);
@@ -577,8 +578,8 @@ async function generateHeadshots(requestBody, userId, corsHeaders) {
       formData.append('prompt[text]', promptText);
       formData.append('prompt[num_images]', String(numImages || 4));
       
-      // Call the correct Flux API endpoint
-      const response = await fetch(`https://api.astria.ai/tunes/${FLUX_BASE_MODEL_ID}/prompts`, {
+      // Call the correct endpoint with the tuneId
+      const response = await fetch(`https://api.astria.ai/tunes/${tuneId}/prompts`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${ASTRIA_API_KEY}`

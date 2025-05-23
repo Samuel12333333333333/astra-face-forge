@@ -18,12 +18,12 @@ interface PreviewSectionProps {
   onBack: () => void;
 }
 
-// Define literal types for styles
+// Define literal types for styles explicitly to avoid deep type instantiation
 type StyleType = 'professional' | 'casual' | 'creative';
-const VALID_STYLES: StyleType[] = ['professional', 'casual', 'creative'];
+const VALID_STYLES: readonly StyleType[] = ['professional', 'casual', 'creative'] as const;
 
-// Define style prompts with string literal keys
-const STYLE_PROMPTS: { [key in StyleType]: string } = {
+// Define style prompts with a simple mapped object
+const STYLE_PROMPTS: Record<StyleType, string> = {
   professional: "a professional headshot of sks person with studio lighting, neutral background, business attire",
   casual: "a casual portrait of sks person with natural lighting, relaxed expression, modern setting",
   creative: "an artistic portrait of sks person with dramatic lighting, creative composition, unique setting"
@@ -97,10 +97,10 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
     try {
       setIsGenerating(true);
       
-      // Simple style validation
-      const styleToUse = VALID_STYLES.includes(selectedStyle as StyleType) 
-        ? selectedStyle as StyleType 
-        : 'professional';
+      // Safely validate the style using type assertion
+      const styleToUse = (VALID_STYLES.includes(selectedStyle as StyleType) 
+        ? selectedStyle 
+        : 'professional') as StyleType;
       
       // Get the prompt for the validated style
       const prompt = STYLE_PROMPTS[styleToUse];
