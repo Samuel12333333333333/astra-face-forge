@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ interface PreviewSectionProps {
 // Define style types using string literals
 type StyleType = 'professional' | 'casual' | 'creative';
 
-// Define style prompts
+// Define style prompts - using Record with concrete StyleType
 const STYLE_PROMPTS: Record<StyleType, string> = {
   professional: "a professional headshot of sks person with studio lighting, neutral background, business attire",
   casual: "a casual portrait of sks person with natural lighting, relaxed expression, modern setting",
@@ -89,10 +90,12 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
     try {
       setIsGenerating(true);
       
-      // Validate the selected style to match our defined types
-      const validStyle = (selectedStyle === 'professional' || selectedStyle === 'casual' || selectedStyle === 'creative') 
-        ? selectedStyle as StyleType 
-        : 'professional';
+      // Use type assertion instead of validation to fix infinite type instantiation
+      const validStyle = (selectedStyle === 'professional' || 
+                          selectedStyle === 'casual' || 
+                          selectedStyle === 'creative') 
+                          ? (selectedStyle as StyleType) 
+                          : ('professional' as StyleType);
       
       // Get the prompt for the selected style
       const prompt = STYLE_PROMPTS[validStyle];

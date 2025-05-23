@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 
@@ -171,7 +170,6 @@ async function handleImageUpload(requestData, corsHeaders) {
     formData.append('image', imageFile);
     
     // Send to Astria API with explicit timeout handling
-    // Correct endpoint for Flux API
     console.log(`Sending to Astria API: https://api.astria.ai/images`);
     
     const controller = new AbortController();
@@ -202,7 +200,7 @@ async function handleImageUpload(requestData, corsHeaders) {
       let result;
       try {
         result = JSON.parse(responseText);
-        console.log("Astria API success response:", JSON.stringify(result));
+        console.log("Astria API response:", JSON.stringify(result));
       } catch (e) {
         console.error("Failed to parse JSON response:", e);
         return new Response(
@@ -236,7 +234,6 @@ async function handleImageUpload(requestData, corsHeaders) {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } catch (fetchError) {
-      clearTimeout(timeoutId);
       console.error("Fetch error with Astria API:", fetchError);
       
       if (fetchError.name === 'AbortError') {
