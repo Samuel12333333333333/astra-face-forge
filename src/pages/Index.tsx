@@ -11,7 +11,7 @@ import { User, ArrowRight, Camera, Sparkles } from "lucide-react";
 
 const Index = () => {
   const [currentStep, setCurrentStep] = useState<"upload" | "training" | "style" | "preview">("upload");
-  const [uploadedImageIds, setUploadedImageIds] = useState<string[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
   const [tuneId, setTuneId] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -92,9 +92,9 @@ const Index = () => {
     }
   };
 
-  const handleImagesUploaded = (imageIds: string[]) => {
-    setUploadedImageIds(imageIds);
-    toast.success(`${imageIds.length} images uploaded successfully!`);
+  const handleImagesUploaded = (files: File[]) => {
+    setUploadedFiles(files);
+    console.log(`${files.length} files prepared for training`);
   };
 
   const handleTrainingComplete = (generatedTuneId: string) => {
@@ -179,7 +179,7 @@ const Index = () => {
             
             {currentStep === "training" && (
               <TrainingSection 
-                imageIds={uploadedImageIds}
+                images={uploadedFiles}
                 onTrainingComplete={handleTrainingComplete}
                 onContinue={() => handleStepChange("style")}
               />

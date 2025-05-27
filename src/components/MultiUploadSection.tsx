@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Progress } from "@/components/ui/progress";
 
 interface MultiUploadSectionProps {
-  onImagesUploaded: (imageIds: string[]) => void;
+  onImagesUploaded: (files: File[]) => void;
   onContinue: () => void;
 }
 
@@ -17,17 +17,17 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
   onContinue 
 }) => {
   const [files, setFiles] = useState<File[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [uploadedCount, setUploadedCount] = useState(0);
-  const [uploadedImageIds, setUploadedImageIds] = useState<string[]>([]);
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isValidated, setIsValidated] = useState(false);
 
   // Reducing the minimum required number of images to make the app more user-friendly
   const MIN_REQUIRED_IMAGES = 5;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
+    setIsValidated(false);
+    
     if (e.target.files) {
       const selectedFiles = Array.from(e.target.files);
       
@@ -57,7 +57,7 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
     }
   };
 
-  const handleUpload = async () => {
+  const handleValidateAndPrepare = () => {
     if (files.length === 0) {
       setError("Please select at least one image");
       toast.error("Please select at least one image");
@@ -71,90 +71,11 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
     }
 
     setError(null);
-    setUploading(true);
-    setUploadedCount(0);
-    setUploadedImageIds([]);
-    const imageIds: string[] = [];
-
-    try {
-      console.log("Starting upload of", files.length, "images");
-      
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        console.log(`Uploading image ${i+1}/${files.length}: ${file.name} (${file.type}, ${file.size} bytes)`);
-        
-        if (!file || file.size === 0) {
-          console.error(`Skipping empty file at index ${i}`);
-          continue;
-        }
-        
-        try {
-          // Convert file to base64
-          const base64Data = await fileToBase64(file);
-          
-          // Call the Supabase Edge Function
-          const { data, error } = await supabase.functions.invoke('astria', {
-            body: {
-              action: 'upload-images',
-              image: base64Data,
-              filename: file.name,
-              contentType: file.type
-            }
-          });
-          
-          if (error) {
-            throw new Error(`Error invoking function: ${error.message}`);
-          }
-          
-          console.log(`Image ${i+1} upload response:`, data);
-          
-          if (data && data.id) {
-            imageIds.push(data.id);
-            setUploadedCount(prev => prev + 1);
-            console.log(`Successfully uploaded image ${i+1}, received ID: ${data.id}`);
-          } else {
-            throw new Error(`Missing ID in response for image ${i+1}`);
-          }
-        } catch (uploadError: any) {
-          console.error(`Upload error for image ${i+1}:`, uploadError);
-          toast.error(`Error uploading image ${i+1}`, { description: uploadError.message });
-        }
-      }
-
-      if (imageIds.length > 0) {
-        if (imageIds.length < MIN_REQUIRED_IMAGES) {
-          const missingCount = MIN_REQUIRED_IMAGES - imageIds.length;
-          setError(`Only ${imageIds.length} images were successfully uploaded. Need ${missingCount} more to meet the minimum of ${MIN_REQUIRED_IMAGES}.`);
-          toast.error(`Upload more images`, { description: `Only ${imageIds.length} images were successfully uploaded. Need ${missingCount} more.` });
-        } else {
-          setUploadedImageIds(imageIds);
-          onImagesUploaded(imageIds);
-          toast.success(`Successfully uploaded ${imageIds.length} out of ${files.length} images`);
-        }
-      } else {
-        setError("Failed to upload any images. Please try again.");
-        toast.error("Failed to upload any images. Please try again.");
-      }
-    } catch (error: any) {
-      console.error("Upload error:", error);
-      setError(`Error uploading images: ${error.message}`);
-      toast.error(`Error uploading images: ${error.message}`);
-    } finally {
-      setUploading(false);
-    }
-  };
-  
-  // Helper function to convert File object to base64 string
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        const base64String = reader.result as string;
-        resolve(base64String);
-      };
-      reader.onerror = (error) => reject(error);
-    });
+    setIsValidated(true);
+    
+    // Pass the files to parent component for training
+    onImagesUploaded(files);
+    toast.success(`${files.length} images prepared for training!`);
   };
   
   const handleRemoveFile = (index: number) => {
@@ -166,16 +87,14 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
     newPreviews.splice(index, 1);
     setPreviewImages(newPreviews);
     
-    // Clear any existing upload success since we modified the file list
-    if (uploadedImageIds.length > 0) {
-      setUploadedImageIds([]);
-      toast.info("Files changed. You'll need to upload again.");
+    // Clear validation if we modified the file list
+    if (isValidated) {
+      setIsValidated(false);
+      toast.info("Files changed. You'll need to prepare them again.");
     }
     
     setError(null);
   };
-
-  const uploadProgress = files.length > 0 ? Math.round((uploadedCount / files.length) * 100) : 0;
 
   return (
     <div className="w-full max-w-md mx-auto">
@@ -202,7 +121,6 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
                 multiple 
                 accept="image/*"
                 onChange={handleFileChange}
-                disabled={uploading}
               />
             </label>
           </div>
@@ -224,19 +142,17 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
                     (Need at least {MIN_REQUIRED_IMAGES})
                   </span>
                 )}</p>
-                {!uploading && (
-                  <button 
-                    onClick={() => {
-                      setFiles([]);
-                      setPreviewImages([]);
-                      setUploadedImageIds([]);
-                      setError(null);
-                    }}
-                    className="text-xs text-red-500 hover:text-red-700"
-                  >
-                    Clear all
-                  </button>
-                )}
+                <button 
+                  onClick={() => {
+                    setFiles([]);
+                    setPreviewImages([]);
+                    setIsValidated(false);
+                    setError(null);
+                  }}
+                  className="text-xs text-red-500 hover:text-red-700"
+                >
+                  Clear all
+                </button>
               </div>
               
               <div className="grid grid-cols-4 gap-2 mb-4">
@@ -247,14 +163,12 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
                       alt={`Preview ${index+1}`} 
                       className="w-full h-full object-cover" 
                     />
-                    {!uploading && (
-                      <button 
-                        onClick={() => handleRemoveFile(index)} 
-                        className="absolute top-1 right-1 bg-black/60 p-1 rounded-full hover:bg-black/80"
-                      >
-                        <X className="h-3 w-3 text-white" />
-                      </button>
-                    )}
+                    <button 
+                      onClick={() => handleRemoveFile(index)} 
+                      className="absolute top-1 right-1 bg-black/60 p-1 rounded-full hover:bg-black/80"
+                    >
+                      <X className="h-3 w-3 text-white" />
+                    </button>
                   </div>
                 ))}
                 {files.length > 8 && (
@@ -266,36 +180,21 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
             </div>
           )}
           
-          {uploading && (
-            <div className="w-full mb-4">
-              <div className="flex justify-between text-sm mb-1">
-                <span>Uploading...</span>
-                <span>{uploadedCount}/{files.length}</span>
-              </div>
-              <Progress value={uploadProgress} className="h-2" />
-            </div>
-          )}
-          
           <div className="flex flex-col w-full gap-2">
             <Button
-              onClick={handleUpload}
-              disabled={files.length === 0 || uploading}
+              onClick={handleValidateAndPrepare}
+              disabled={files.length === 0}
               className="w-full bg-brand-600 hover:bg-brand-700"
             >
-              {uploading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
-                  Uploading
-                </>
-              ) : uploadedImageIds.length >= MIN_REQUIRED_IMAGES ? (
+              {isValidated ? (
                 <>
                   <Check className="mr-2 h-4 w-4" />
-                  {uploadedImageIds.length} Images Uploaded Successfully
+                  {files.length} Images Ready for Training
                 </>
               ) : (
                 <>
                   <Upload className="mr-2 h-4 w-4" />
-                  Upload Photos
+                  Prepare Photos for Training
                 </>
               )}
             </Button>
@@ -303,10 +202,10 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
             <Button 
               className="w-full"
               onClick={onContinue}
-              disabled={uploadedImageIds.length < MIN_REQUIRED_IMAGES}
-              variant={uploadedImageIds.length >= MIN_REQUIRED_IMAGES ? "default" : "outline"}
+              disabled={!isValidated}
+              variant={isValidated ? "default" : "outline"}
             >
-              Continue <ArrowRight className="ml-2 h-4 w-4" />
+              Continue to Training <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
           

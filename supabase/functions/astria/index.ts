@@ -270,19 +270,7 @@ async function createTune(requestBody, userId, corsHeaders) {
   try {
     console.log("Processing create tune request for user:", userId);
     
-    const { imageIds, callbackUrl } = requestBody;
-    
-    if (!imageIds || !Array.isArray(imageIds) || imageIds.length < 5) {
-      console.error(`Invalid image IDs: ${JSON.stringify(imageIds)}`);
-      return new Response(
-        JSON.stringify({ error: "At least 5 image IDs are required" }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
-    console.log(`Creating tune with ${imageIds.length} images:`, imageIds);
-    
-    // Create tune with Astria API
+    // Create tune with Astria API - without images first
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60000); // 1-minute timeout
     
@@ -296,15 +284,6 @@ async function createTune(requestBody, userId, corsHeaders) {
       formData.append('tune[preset]', 'flux-lora-portrait');
       formData.append('tune[instance_prompt]', `photo of sks${userId.substring(0, 8)} person`);
       formData.append('tune[class_prompt]', 'person');
-      
-      // Add all image IDs
-      imageIds.forEach(imageId => {
-        formData.append('tune[images][]', imageId);
-      });
-      
-      if (callbackUrl) {
-        formData.append('tune[callback]', callbackUrl);
-      }
       
       const response = await fetch(`https://api.astria.ai/tunes`, {
         method: 'POST',
@@ -365,7 +344,7 @@ async function createTune(requestBody, userId, corsHeaders) {
           .from('models')
           .insert({ 
             user_id: userId, 
-            modelId: result.id,
+            modelid: result.id,
             status: result.status || 'training',
             name: `Headshot Model - ${new Date().toLocaleDateString()}`,
             type: 'headshot'
@@ -376,20 +355,6 @@ async function createTune(requestBody, userId, corsHeaders) {
           console.error("Database error storing model:", modelError);
         } else if (modelData && modelData.length > 0) {
           console.log("Stored model in database with ID:", modelData[0].id);
-          
-          // Associate the uploaded images with this model
-          for (const imageId of imageIds) {
-            const { error: sampleError } = await supabase
-              .from('samples')
-              .insert({ 
-                modelId: modelData[0].id,
-                uri: imageId
-              });
-              
-            if (sampleError) {
-              console.error("Error storing sample image:", sampleError);
-            }
-          }
         }
       } catch (dbError) {
         console.error("Error storing model in database:", dbError);

@@ -2,280 +2,270 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Loader2, Sparkles, AlertCircle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { ArrowRight, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 interface TrainingSectionProps {
-  imageIds: string[];
+  images: File[];
   onTrainingComplete: (tuneId: string) => void;
   onContinue: () => void;
 }
 
-const TrainingSection: React.FC<TrainingSectionProps> = ({ 
-  imageIds, 
-  onTrainingComplete, 
-  onContinue 
+const TrainingSection: React.FC<TrainingSectionProps> = ({
+  images,
+  onTrainingComplete,
+  onContinue
 }) => {
   const [isTraining, setIsTraining] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [status, setStatus] = useState<'idle' | 'creating-tune' | 'uploading-images' | 'training' | 'completed' | 'error'>('idle');
   const [tuneId, setTuneId] = useState<string | null>(null);
-  const [status, setStatus] = useState<string>('pending');
-  const [statusMessage, setStatusMessage] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
-  // Change the type to NodeJS.Timeout | null to match what setInterval returns
-  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
-
-  // Minimum required images
-  const MIN_REQUIRED_IMAGES = 5;
-
-  useEffect(() => {
-    // Check for existing tuneId in localStorage
-    const storedTuneId = localStorage.getItem('currentTuneId');
-    if (storedTuneId) {
-      setTuneId(storedTuneId);
-      checkTrainingStatus(storedTuneId);
-    }
-
-    // Clean up polling interval on unmount
-    return () => {
-      if (pollingInterval !== null) {
-        clearInterval(pollingInterval);
-      }
-    };
-  }, []);
 
   const startTraining = async () => {
-    if (imageIds.length === 0) {
-      setError("No images available for training");
-      toast.error("No images available for training");
+    if (images.length === 0) {
+      toast.error("No images provided for training");
       return;
     }
 
-    if (imageIds.length < MIN_REQUIRED_IMAGES) {
-      setError(`At least ${MIN_REQUIRED_IMAGES} images are required for training`);
-      toast.error(`At least ${MIN_REQUIRED_IMAGES} images are required for training`);
-      return;
-    }
-
-    setError(null);
     setIsTraining(true);
     setProgress(0);
-    setStatus('training');
-    setStatusMessage('Initializing AI model training...');
-    
+    setError(null);
+    setStatus('creating-tune');
+
     try {
-      // Call the Supabase Edge Function to create a tune
-      const { data, error } = await supabase.functions.invoke('astria', {
+      // Step 1: Create the tune first
+      console.log("Creating tune...");
+      const { data: tuneData, error: tuneError } = await supabase.functions.invoke('astria', {
         body: {
-          action: 'create-tune',
-          imageIds: imageIds
+          action: 'create-tune'
         }
       });
-      
-      if (error) {
-        throw new Error(`Error creating tune: ${error.message}`);
+
+      if (tuneError) throw tuneError;
+      if (!tuneData || !tuneData.id) {
+        throw new Error("No tune ID received from creation");
       }
-      
-      if (!data || !data.id) {
-        throw new Error("No tune ID received from API");
-      }
-      
-      const newTuneId = data.id;
-      setTuneId(newTuneId);
-      localStorage.setItem('currentTuneId', newTuneId);
-      toast.success("AI model training started successfully");
-      setStatusMessage('Training your AI model...');
-      
-      // Start polling for status
-      const interval = setInterval(async () => {
-        const status = await checkTrainingStatus(newTuneId);
+
+      const createdTuneId = tuneData.id;
+      setTuneId(createdTuneId);
+      setStatus('uploading-images');
+      setProgress(20);
+
+      console.log("Tune created successfully:", createdTuneId);
+
+      // Step 2: Upload images to the tune
+      let uploadedCount = 0;
+      for (let i = 0; i < images.length; i++) {
+        const file = images[i];
+        console.log(`Uploading image ${i+1}/${images.length}: ${file.name}`);
         
-        if (status === 'complete') {
-          clearInterval(interval);
-          setPollingInterval(null);
-          onTrainingComplete(newTuneId);
-        }
-        
-        // Update progress based on status
-        if (status === 'training') {
-          // Increment progress slightly to show activity
-          setProgress((prev) => {
-            const newProgress = Math.min(prev + 2, 95);
-            return newProgress;
+        try {
+          // Convert file to base64
+          const base64Data = await fileToBase64(file);
+          
+          // Upload to the tune
+          const { data: uploadData, error: uploadError } = await supabase.functions.invoke('astria', {
+            body: {
+              action: 'upload-images',
+              image: base64Data,
+              filename: file.name,
+              contentType: file.type,
+              tuneId: createdTuneId
+            }
           });
           
-          // Update status message
-          if (progress < 30) {
-            setStatusMessage('Analyzing facial features...');
-          } else if (progress < 60) {
-            setStatusMessage('Learning your unique characteristics...');
+          if (uploadError) {
+            console.error(`Upload error for image ${i+1}:`, uploadError);
+            toast.error(`Error uploading image ${i+1}`, { description: uploadError.message });
           } else {
-            setStatusMessage('Finalizing your AI model...');
+            uploadedCount++;
+            console.log(`Successfully uploaded image ${i+1}`);
           }
-        } else if (status === 'complete') {
-          setProgress(100);
-          setStatusMessage('Training complete!');
-        } else if (status === 'error') {
-          clearInterval(interval);
-          setPollingInterval(null);
-          setStatusMessage('Training failed. Please try again.');
-          setError('There was an error during training.');
-          toast.error('Training failed. Please try again.');
+        } catch (uploadError: any) {
+          console.error(`Upload error for image ${i+1}:`, uploadError);
+          toast.error(`Error uploading image ${i+1}`, { description: uploadError.message });
         }
-      }, 15000); // Poll every 15 seconds
+
+        // Update progress
+        const uploadProgress = 20 + ((i + 1) / images.length) * 30; // 20-50%
+        setProgress(uploadProgress);
+      }
+
+      if (uploadedCount === 0) {
+        throw new Error("Failed to upload any images");
+      }
+
+      console.log(`Successfully uploaded ${uploadedCount} out of ${images.length} images`);
       
-      setPollingInterval(interval);
+      // Step 3: Start training by checking status (training starts automatically)
+      setStatus('training');
+      setProgress(50);
+
+      // Poll for training completion
+      await pollTrainingStatus(createdTuneId);
+
     } catch (error: any) {
       console.error("Training error:", error);
-      setError(`Error during training: ${error.message}`);
-      toast.error(`Error during training: ${error.message}`);
+      setError(error.message);
       setStatus('error');
-      setStatusMessage('There was an error during training.');
+      toast.error(`Training failed: ${error.message}`);
     } finally {
       setIsTraining(false);
     }
   };
-  
-  const checkTrainingStatus = async (id: string): Promise<string> => {
-    try {
-      const { data, error } = await supabase.functions.invoke('astria', {
-        body: {
-          action: 'check-status',
-          tuneId: id
-        }
-      });
-      
-      if (error) {
-        throw new Error(`Error checking tune status: ${error.message}`);
-      }
-      
-      if (data && data.status) {
-        console.log("Tune status:", data.status);
-        setStatus(data.status);
-        
-        if (data.status === 'complete') {
+
+  const pollTrainingStatus = async (tuneId: string) => {
+    const maxAttempts = 60; // 10 minutes max
+    let attempts = 0;
+
+    const checkStatus = async (): Promise<void> => {
+      try {
+        const { data, error } = await supabase.functions.invoke('astria', {
+          body: {
+            action: 'check-status',
+            tuneId: tuneId
+          }
+        });
+
+        if (error) throw error;
+
+        const currentStatus = data?.status || 'unknown';
+        console.log(`Training status: ${currentStatus}`);
+
+        if (currentStatus === 'training') {
+          const progressValue = 50 + (attempts / maxAttempts) * 40; // 50-90%
+          setProgress(Math.min(progressValue, 90));
+          
+          attempts++;
+          if (attempts < maxAttempts) {
+            setTimeout(checkStatus, 10000); // Check every 10 seconds
+          } else {
+            throw new Error("Training timeout - please try again");
+          }
+        } else if (currentStatus === 'finished' || currentStatus === 'completed') {
           setProgress(100);
-          setStatusMessage('Training complete!');
+          setStatus('completed');
+          onTrainingComplete(tuneId);
           toast.success("Training completed successfully!");
-          
-          // Clean up polling interval
-          if (pollingInterval !== null) {
-            clearInterval(pollingInterval);
-            setPollingInterval(null);
-          }
-        } else if (data.status === 'error' || data.status === 'failed') {
-          setError('Training failed. Please try again with different images.');
-          setStatusMessage('Training failed.');
-          
-          // Clean up polling interval
-          if (pollingInterval !== null) {
-            clearInterval(pollingInterval);
-            setPollingInterval(null);
+        } else if (currentStatus === 'failed' || currentStatus === 'error') {
+          throw new Error("Training failed on Astria's servers");
+        } else {
+          // Unknown status, continue polling
+          attempts++;
+          if (attempts < maxAttempts) {
+            setTimeout(checkStatus, 10000);
+          } else {
+            throw new Error("Training status unknown - please check manually");
           }
         }
-        
-        return data.status;
+      } catch (error: any) {
+        console.error("Status check error:", error);
+        setError(error.message);
+        setStatus('error');
+        throw error;
       }
-      
-      return 'pending';
-    } catch (error: any) {
-      console.error("Status check error:", error);
-      setError(`Error checking training status: ${error.message}`);
-      return 'error';
+    };
+
+    await checkStatus();
+  };
+
+  // Helper function to convert File to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  const getStatusMessage = () => {
+    switch (status) {
+      case 'creating-tune':
+        return "Creating your personalized AI model...";
+      case 'uploading-images':
+        return "Uploading your photos to the AI training system...";
+      case 'training':
+        return "Training your AI model (this may take 10-20 minutes)...";
+      case 'completed':
+        return "Training completed! Your AI model is ready.";
+      case 'error':
+        return "Training failed. Please try again.";
+      default:
+        return "Ready to start training your AI model.";
     }
   };
 
   return (
     <div className="w-full max-w-md mx-auto">
-      <Card className="border-2">
-        <CardContent className="pt-6 flex flex-col items-center">
-          <h3 className="text-xl font-medium text-center mb-6">Train Your Custom AI Model</h3>
+      <Card>
+        <CardContent className="pt-6">
+          <h3 className="text-xl font-medium text-center mb-6">AI Model Training</h3>
           
+          <div className="mb-6">
+            <div className="flex items-center justify-between text-sm mb-2">
+              <span>Training Progress</span>
+              <span>{Math.round(progress)}%</span>
+            </div>
+            <Progress value={progress} className="h-2" />
+          </div>
+
+          <div className="flex items-center justify-center mb-6">
+            {status === 'error' ? (
+              <AlertCircle className="h-8 w-8 text-red-500 mr-2" />
+            ) : status === 'completed' ? (
+              <CheckCircle className="h-8 w-8 text-green-500 mr-2" />
+            ) : isTraining ? (
+              <Loader2 className="h-8 w-8 animate-spin text-brand-600 mr-2" />
+            ) : null}
+            <p className="text-center text-muted-foreground">
+              {getStatusMessage()}
+            </p>
+          </div>
+
           {error && (
-            <div className="w-full mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-red-600">{error}</p>
-              </div>
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-600">{error}</p>
             </div>
           )}
-          
-          {!tuneId && (
-            <>
-              <div className="w-full p-6 bg-muted/50 rounded-lg mb-6">
-                <div className="flex items-start gap-4">
-                  <div className="h-10 w-10 rounded-full bg-brand-100 flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="h-5 w-5 text-brand-600" />
-                  </div>
-                  <div>
-                    <h4 className="font-medium mb-2">AI Training Process</h4>
-                    <p className="text-sm text-muted-foreground">
-                      We'll now use your photos to create a personalized AI model that captures your features.
-                      This process typically takes 10-15 minutes.
-                    </p>
-                  </div>
-                </div>
-              </div>
-              
-              <Button
-                onClick={startTraining}
-                disabled={isTraining || imageIds.length < MIN_REQUIRED_IMAGES}
-                className="w-full mb-4 bg-brand-600 hover:bg-brand-700"
-                size="lg"
-              >
-                {isTraining ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Training in Progress...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Start Training
-                  </>
-                )}
-              </Button>
-            </>
-          )}
-          
-          {(isTraining || tuneId) && (
-            <div className="w-full mt-4">
-              <div className="flex justify-between text-sm mb-1">
-                <span className="font-medium">Training Progress</span>
-                <span>{progress}%</span>
-              </div>
-              <Progress value={progress} className="mb-4" />
-              
-              <div className="text-center py-2 px-4 rounded-md bg-muted/50 mb-4">
-                <p className="text-sm">{statusMessage}</p>
-              </div>
-              
-              {status === 'complete' && (
-                <div className="mt-6 text-center">
-                  <div className="inline-flex items-center justify-center rounded-full bg-green-100 p-3 mb-4">
-                    <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                  <h4 className="text-lg font-medium mb-2">Training Complete!</h4>
-                  <p className="text-muted-foreground mb-4">
-                    Your AI model is ready to create professional headshots.
-                  </p>
-                </div>
+
+          <div className="space-y-3">
+            <Button
+              onClick={startTraining}
+              disabled={isTraining || status === 'completed'}
+              className="w-full bg-brand-600 hover:bg-brand-700"
+            >
+              {isTraining ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Training in Progress...
+                </>
+              ) : status === 'completed' ? (
+                <>
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Training Completed
+                </>
+              ) : (
+                "Start AI Training"
               )}
-            </div>
-          )}
-          
-          <Button 
-            className="w-full mt-4"
-            disabled={!tuneId || status !== 'complete'}
-            onClick={onContinue}
-            variant={status === 'complete' ? "default" : "outline"}
-          >
-            Continue to Style Selection <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
+            </Button>
+
+            <Button
+              onClick={onContinue}
+              disabled={status !== 'completed'}
+              variant={status === 'completed' ? "default" : "outline"}
+              className="w-full"
+            >
+              Continue to Style Selection <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="text-sm text-muted-foreground mt-4 text-center">
+            <p>Training typically takes 10-20 minutes. You can safely leave this page during training.</p>
+          </div>
         </CardContent>
       </Card>
     </div>
