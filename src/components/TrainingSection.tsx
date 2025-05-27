@@ -44,8 +44,13 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
         }
       });
 
-      if (tuneError) throw tuneError;
+      if (tuneError) {
+        console.error("Tune creation error:", tuneError);
+        throw new Error(`Failed to create tune: ${tuneError.message}`);
+      }
+      
       if (!tuneData || !tuneData.id) {
+        console.error("No tune data received:", tuneData);
         throw new Error("No tune ID received from creation");
       }
 
@@ -66,27 +71,27 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
           // Convert file to base64
           const base64Data = await fileToBase64(file);
           
-          // Upload to the tune
+          // Upload to the tune with the created tuneId
           const { data: uploadData, error: uploadError } = await supabase.functions.invoke('astria', {
             body: {
               action: 'upload-images',
               image: base64Data,
               filename: file.name,
               contentType: file.type,
-              tuneId: createdTuneId
+              tuneId: createdTuneId // This is now guaranteed to exist
             }
           });
           
           if (uploadError) {
             console.error(`Upload error for image ${i+1}:`, uploadError);
-            toast.error(`Error uploading image ${i+1}`, { description: uploadError.message });
+            toast.error(`Error uploading image ${i+1}: ${uploadError.message}`);
           } else {
             uploadedCount++;
             console.log(`Successfully uploaded image ${i+1}`);
           }
         } catch (uploadError: any) {
           console.error(`Upload error for image ${i+1}:`, uploadError);
-          toast.error(`Error uploading image ${i+1}`, { description: uploadError.message });
+          toast.error(`Error uploading image ${i+1}: ${uploadError.message}`);
         }
 
         // Update progress
@@ -130,7 +135,10 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
           }
         });
 
-        if (error) throw error;
+        if (error) {
+          console.error("Status check error:", error);
+          throw new Error(`Status check failed: ${error.message}`);
+        }
 
         const currentStatus = data?.status || 'unknown';
         console.log(`Training status: ${currentStatus}`);
