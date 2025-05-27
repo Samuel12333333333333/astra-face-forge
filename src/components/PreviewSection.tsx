@@ -53,12 +53,12 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
     try {
       setIsLoading(true);
       
-      // First get the model ID from the tune ID
+      // First get the model ID from the tune ID - cast to any to avoid deep type issues
       const { data: models, error: modelError } = await supabase
         .from('models')
         .select('id')
-        .eq('modelId', tuneId)
-        .limit(1);
+        .eq('modelid', tuneId)
+        .limit(1) as any;
       
       if (modelError) throw modelError;
       
@@ -69,17 +69,17 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
       
       const modelId = models[0].id;
       
-      // Now fetch images for this model
+      // Now fetch images for this model - cast to any to avoid deep type issues
       const { data: images, error: imagesError } = await supabase
         .from('images')
         .select('uri')
-        .eq('modelId', modelId)
-        .order('created_at', { ascending: false });
+        .eq('modelid', modelId)
+        .order('created_at', { ascending: false }) as any;
       
       if (imagesError) throw imagesError;
       
       if (images && images.length > 0) {
-        const imageUrls = images.map(img => img.uri);
+        const imageUrls = images.map((img: any) => img.uri);
         setHeadshots(imageUrls);
         setSelectedHeadshot(imageUrls[0]); // Select the first image by default
       }
