@@ -30,6 +30,39 @@ export type Database = {
         }
         Relationships: []
       }
+      headshots: {
+        Row: {
+          created_at: string
+          gender: string
+          generated_image_path: string
+          id: string
+          original_image_path: string
+          prompt: string
+          style: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          gender: string
+          generated_image_path: string
+          id?: string
+          original_image_path: string
+          prompt: string
+          style: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          gender?: string
+          generated_image_path?: string
+          id?: string
+          original_image_path?: string
+          prompt?: string
+          style?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       images: {
         Row: {
           created_at: string
@@ -86,6 +119,36 @@ export type Database = {
           status?: string
           type?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          first_name: string | null
+          id: string
+          last_name: string | null
+          theme: string | null
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          first_name?: string | null
+          id: string
+          last_name?: string | null
+          theme?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          theme?: string | null
+          updated_at?: string
         }
         Relationships: []
       }

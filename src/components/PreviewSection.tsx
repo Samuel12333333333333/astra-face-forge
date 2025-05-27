@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
@@ -17,14 +18,18 @@ interface PreviewSectionProps {
   onBack: () => void;
 }
 
-// Define style types explicitly to avoid deep instantiation errors
-type StyleType = 'professional' | 'casual' | 'creative';
-
-// Define style prompts as a simple mapping with explicit type annotation
-const STYLE_PROMPTS: Record<StyleType, string> = {
-  professional: "a professional headshot of sks person with studio lighting, neutral background, business attire",
-  casual: "a casual portrait of sks person with natural lighting, relaxed expression, modern setting",
-  creative: "an artistic portrait of sks person with dramatic lighting, creative composition, unique setting"
+// Simple style mapping to avoid type complexity
+const getStylePrompt = (style: string): string => {
+  switch (style) {
+    case 'professional':
+      return "a professional headshot of sks person with studio lighting, neutral background, business attire";
+    case 'casual':
+      return "a casual portrait of sks person with natural lighting, relaxed expression, modern setting";
+    case 'creative':
+      return "an artistic portrait of sks person with dramatic lighting, creative composition, unique setting";
+    default:
+      return "a professional headshot of sks person with studio lighting, neutral background, business attire";
+  }
 };
 
 const PreviewSection: React.FC<PreviewSectionProps> = ({
@@ -95,21 +100,16 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
     try {
       setIsGenerating(true);
       
-      // Validate style using a simple direct check
-      const validStyles: StyleType[] = ['professional', 'casual', 'creative'];
-      const styleToUse: StyleType = validStyles.includes(selectedStyle as StyleType) 
-        ? (selectedStyle as StyleType)
-        : 'professional';
+      // Use simple function to get prompt
+      const prompt = getStylePrompt(selectedStyle);
       
-      // Get the prompt for the style with direct access
-      const prompt = STYLE_PROMPTS[styleToUse];
-      
-      const { data, error } = await supabase.functions.invoke('astria', {
+      // Use any type for the function call to avoid type depth issues
+      const { data, error } = await (supabase.functions as any).invoke('astria', {
         body: {
           action: 'generate-headshots',
           tuneId: tuneId,
           prompt: prompt,
-          styleType: styleToUse,
+          styleType: selectedStyle,
           numImages: 4
         }
       });
