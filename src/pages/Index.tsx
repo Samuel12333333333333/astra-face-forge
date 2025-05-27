@@ -48,15 +48,24 @@ const Index = () => {
     checkAuth();
   }, []);
   
-  // Try to recover from localStorage if coming back to the app
+  // Improved recovery from localStorage
   useEffect(() => {
+    if (!isAuthenticated) return;
+    
     const storedTuneId = localStorage.getItem('currentTuneId');
     const storedStyle = localStorage.getItem('selectedStyle');
     const storedStep = localStorage.getItem('currentStep') as "upload" | "training" | "style" | "preview" | null;
+    const trainingStatus = localStorage.getItem('trainingStatus');
     
     if (storedTuneId) {
       console.log("Recovered tuneId from localStorage:", storedTuneId);
       setTuneId(storedTuneId);
+      
+      // If we have a completed training, go to style selection
+      if (trainingStatus === 'completed' && !storedStep) {
+        setCurrentStep('style');
+        localStorage.setItem('currentStep', 'style');
+      }
     }
     
     if (storedStyle) {
@@ -64,9 +73,14 @@ const Index = () => {
       setSelectedStyle(storedStyle);
     }
     
-    if (storedStep && storedStep !== "upload") {
+    // Restore step, but prioritize training if we have an active session
+    if (storedStep) {
       console.log("Recovered step from localStorage:", storedStep);
       setCurrentStep(storedStep);
+    } else if (storedTuneId && trainingStatus && trainingStatus !== 'completed') {
+      // If we have training in progress, go to training step
+      setCurrentStep('training');
+      localStorage.setItem('currentStep', 'training');
     }
   }, [isAuthenticated]);
 
@@ -102,7 +116,8 @@ const Index = () => {
     setTuneId(generatedTuneId);
     // Store in localStorage for persistence
     localStorage.setItem('currentTuneId', generatedTuneId);
-    toast.success("Training completed successfully!");
+    localStorage.setItem('trainingStatus', 'completed');
+    toast.success("🎉 Training completed! Your AI model is ready for style selection.");
   };
 
   const handleStyleSelected = (styleId: string) => {
@@ -156,15 +171,37 @@ const Index = () => {
           </div>
         ) : (
           <>
-            {/* Hero section */}
+            {/* Improved hero section with expectations */}
             {currentStep === "upload" && (
               <div className="mb-12">
                 <div className="text-center max-w-3xl mx-auto">
                   <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl lg:text-6xl mb-4 bg-gradient-to-r from-brand-700 to-brand-500 bg-clip-text text-transparent">
                     Professional AI Headshots in Minutes
                   </h1>
-                  <p className="text-xl text-muted-foreground mb-8">
+                  <p className="text-xl text-muted-foreground mb-4">
                     Transform your selfies into stunning professional portraits with our AI-powered headshot generator.
+                  </p>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8 max-w-2xl mx-auto">
+                    <p className="text-blue-900 font-medium mb-2">⏱️ How it works:</p>
+                    <div className="text-sm text-blue-700 space-y-1">
+                      <p>1. Upload 10+ photos (2 minutes)</p>
+                      <p>2. AI trains your personal model (20-30 minutes)</p>
+                      <p>3. Generate unlimited professional headshots (instant)</p>
+                    </div>
+                    <p className="text-blue-600 mt-2 text-xs">💡 You can leave during training - we'll email you when ready!</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Enhanced training section with better messaging */}
+            {currentStep === "training" && (
+              <div className="mb-12">
+                <div className="text-center max-w-2xl mx-auto mb-8">
+                  <h1 className="text-3xl font-bold mb-4">Training Your AI Model</h1>
+                  <p className="text-muted-foreground">
+                    We're creating a personalized AI model that understands your unique features. 
+                    This ensures the highest quality and most accurate professional headshots.
                   </p>
                 </div>
               </div>
@@ -201,13 +238,13 @@ const Index = () => {
               />
             )}
 
-            {/* How It Works section */}
+            {/* Updated how it works section */}
             {currentStep === "upload" && (
               <>
                 <section id="how-it-works" className="py-16 border-t mt-16">
                   <div className="text-center max-w-3xl mx-auto mb-12">
                     <h2 className="text-3xl font-bold tracking-tighter mb-4">How It Works</h2>
-                    <p className="text-muted-foreground">Our AI-powered platform transforms your photos into professional headshots in just a few simple steps.</p>
+                    <p className="text-muted-foreground">Our AI-powered platform creates personalized headshots in three simple steps.</p>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -215,24 +252,27 @@ const Index = () => {
                       <div className="h-12 w-12 rounded-full bg-brand-100 flex items-center justify-center mb-4">
                         <Camera className="h-6 w-6 text-brand-600" />
                       </div>
-                      <h3 className="text-xl font-medium mb-2">Upload Photos</h3>
-                      <p className="text-muted-foreground">Upload 10+ clear photos of yourself with varied expressions and angles.</p>
+                      <h3 className="text-xl font-medium mb-2">1. Upload Photos</h3>
+                      <p className="text-muted-foreground mb-2">Upload 10+ clear photos with varied expressions and angles.</p>
+                      <p className="text-sm text-blue-600 font-medium">~2 minutes</p>
                     </div>
                     
                     <div className="flex flex-col items-center text-center">
                       <div className="h-12 w-12 rounded-full bg-brand-100 flex items-center justify-center mb-4">
                         <Sparkles className="h-6 w-6 text-brand-600" />
                       </div>
-                      <h3 className="text-xl font-medium mb-2">AI Training</h3>
-                      <p className="text-muted-foreground">Our AI learns your facial features to create accurate, high-quality representations.</p>
+                      <h3 className="text-xl font-medium mb-2">2. AI Training</h3>
+                      <p className="text-muted-foreground mb-2">Our AI learns your facial features for accurate representations.</p>
+                      <p className="text-sm text-amber-600 font-medium">~20-30 minutes</p>
                     </div>
                     
                     <div className="flex flex-col items-center text-center">
                       <div className="h-12 w-12 rounded-full bg-brand-100 flex items-center justify-center mb-4">
                         <ArrowRight className="h-6 w-6 text-brand-600" />
                       </div>
-                      <h3 className="text-xl font-medium mb-2">Get Results</h3>
-                      <p className="text-muted-foreground">Receive professional headshots in various styles ready for professional use.</p>
+                      <h3 className="text-xl font-medium mb-2">3. Get Results</h3>
+                      <p className="text-muted-foreground mb-2">Generate unlimited professional headshots instantly.</p>
+                      <p className="text-sm text-green-600 font-medium">Instant</p>
                     </div>
                   </div>
                 </section>
