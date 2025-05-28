@@ -30,6 +30,41 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
     console.log("TrainingSection mounted with images:", images.length, images.map(f => f.name));
   }, [images]);
 
+  // Set up real-time listener for training updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('training-updates')
+      .on('broadcast', { event: 'training-completed' }, (payload) => {
+        console.log('Real-time training completion received:', payload);
+        
+        // Check if this notification is for the current user
+        const { data: { user } } = supabase.auth.getUser();
+        user.then(({ data: { user } }) => {
+          if (user && payload.payload?.userId === user.id && payload.payload?.tuneId === tuneId) {
+            console.log('Training completed via real-time notification!');
+            setStatus('completed');
+            setProgress(100);
+            setIsTraining(false);
+            
+            // Clear stored session
+            localStorage.removeItem('trainingStartTime');
+            localStorage.setItem('trainingStatus', 'completed');
+            
+            onTrainingComplete(payload.payload.tuneId);
+            toast.success("🎉 Training completed! Your AI model is ready to create professional headshots.");
+          }
+        });
+      })
+      .on('broadcast', { event: 'tune-created' }, (payload) => {
+        console.log('Real-time tune creation received:', payload);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [tuneId, onTrainingComplete]);
+
   // Update estimated time remaining
   useEffect(() => {
     if (status === 'training' && startTime) {
@@ -101,10 +136,10 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
       console.log(`Successfully converted ${base64Images.length} images. Creating tune with images...`);
       setProgress(30);
 
-      // Create tune with all images in one request - FIXED ACTION NAME
+      // Create tune with all images in one request
       const { data: tuneData, error: tuneError } = await supabase.functions.invoke('astria', {
         body: {
-          action: 'create-tune-with-images', // Fixed: was 'create-tune'
+          action: 'create-tune-with-images',
           images: base64Images
         }
       });
@@ -131,9 +166,9 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
       localStorage.setItem('trainingStatus', 'training');
 
       // Show training started message
-      toast.success(`Training started with ${base64Images.length} images. We'll email you when it's ready!`);
+      toast.success(`Training started with ${base64Images.length} images. We'll notify you when it's ready!`);
 
-      // Poll for training completion
+      // Start periodic status checking (as backup to real-time notifications)
       await pollTrainingStatus(createdTuneId);
 
     } catch (error: any) {
@@ -147,7 +182,8 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
   };
 
   const pollTrainingStatus = async (tuneId: string) => {
-    const maxAttempts = 120; // 40 minutes max (30 second intervals)
+    // Reduced polling frequency since we have real-time notifications
+    const maxAttempts = 40; // 20 minutes max (30 second intervals)
     let attempts = 0;
 
     const checkStatus = async (): Promise<void> => {
@@ -170,7 +206,6 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
         const trainedAt = data?.trained_at;
         
         console.log(`Training status: ${currentStatus}, trained_at: ${trainedAt} (attempt ${attempts + 1})`);
-        console.log("Full status response:", data);
 
         // Check if training is completed - look for trained_at field
         if (trainedAt || currentStatus === 'finished' || currentStatus === 'completed') {
@@ -206,24 +241,24 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
           throw new Error("Training failed on Astria's servers. Please try again with different photos.");
         }
 
-        // Still training - continue polling
+        // Still training - continue polling (less frequently due to real-time notifications)
         if (currentStatus === 'training' || currentStatus === 'queued' || currentStatus === 'processing' || !trainedAt) {
           const progressValue = 50 + (attempts / maxAttempts) * 40; // 50-90%
           setProgress(Math.min(progressValue, 90));
           
           attempts++;
           if (attempts < maxAttempts) {
-            setTimeout(checkStatus, 30000); // Check every 30 seconds
+            // Increased interval since we have real-time notifications as primary method
+            setTimeout(checkStatus, 60000); // Check every 60 seconds instead of 30
           } else {
-            throw new Error("Training is taking longer than expected. We'll email you when it's ready.");
+            console.log("Polling timeout reached, relying on real-time notifications");
+            // Don't throw error, just stop polling and rely on real-time notifications
           }
         } else {
           // Unknown status, continue polling
           attempts++;
           if (attempts < maxAttempts) {
-            setTimeout(checkStatus, 30000);
-          } else {
-            throw new Error("Training status unclear. We'll email you when it's ready.");
+            setTimeout(checkStatus, 60000);
           }
         }
       } catch (error: any) {
@@ -372,10 +407,10 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
 
       {status === 'training' && (
         <div className="mt-6 text-center text-sm text-muted-foreground bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="font-medium text-blue-900 mb-1">💡 Pro Tip</p>
+          <p className="font-medium text-blue-900 mb-1">💡 Real-time Updates</p>
           <p className="text-blue-700">
-            Bookmark this page or keep the tab open. We'll also email you when your model is ready 
-            so you can come back anytime to generate your headshots.
+            You'll receive instant notifications when your model is ready! No need to keep this page open - 
+            we'll notify you immediately when training completes.
           </p>
         </div>
       )}

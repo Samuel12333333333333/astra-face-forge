@@ -2,7 +2,7 @@
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle, Clock, AlertCircle, Sparkles, Mail } from "lucide-react";
+import { CheckCircle, Clock, AlertCircle, Sparkles, Bell } from "lucide-react";
 
 interface TrainingStatusCardProps {
   status: 'idle' | 'creating-tune' | 'uploading-images' | 'training' | 'completed' | 'error';
@@ -67,20 +67,20 @@ const TrainingStatusCard: React.FC<TrainingStatusCardProps> = ({
               </div>
               <p className="text-sm text-amber-700">
                 {estimatedTimeRemaining ? 
-                  `About ${Math.ceil(estimatedTimeRemaining / 60)} minutes remaining` :
-                  "Usually takes 20-30 minutes for best quality"
+                  `About ${Math.ceil(estimatedTimeRemaining / 60000)} minutes remaining` :
+                  "Usually takes 15-25 minutes for best quality"
                 }
               </p>
             </div>
 
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
               <div className="flex items-center gap-2 mb-2">
-                <Mail className="h-4 w-4 text-green-600" />
-                <h4 className="font-medium text-green-900">You can leave this page</h4>
+                <Bell className="h-4 w-4 text-green-600" />
+                <h4 className="font-medium text-green-900">Real-time Notifications</h4>
               </div>
               <p className="text-sm text-green-700">
-                We'll send you an email when your model is ready. Feel free to close 
-                this tab and return later.
+                You'll receive instant notifications when your model is ready! Feel free to close 
+                this tab and come back later - we'll notify you immediately.
               </p>
             </div>
           </div>

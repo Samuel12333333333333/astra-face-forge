@@ -85,7 +85,7 @@ serve(async (req) => {
       case 'generate-headshots':
         return await generateHeadshots(requestBody, userId, corsHeaders);
       case 'check-status':
-        return await checkTuneStatus(requestBody, corsHeaders);
+        return await checkTuneStatus(requestBody, userId, corsHeaders);
       default:
         console.error("Invalid action requested:", action);
         return new Response(
@@ -101,6 +101,33 @@ serve(async (req) => {
     );
   }
 });
+
+// Helper function to send real-time notification
+async function sendRealtimeNotification(userId: string, type: string, data: any) {
+  try {
+    console.log(`Sending real-time notification to user ${userId}:`, type, data);
+    
+    // Send real-time notification through Supabase channel
+    const { error } = await supabase
+      .channel('training-updates')
+      .send({
+        type: 'broadcast',
+        event: type,
+        payload: {
+          userId,
+          ...data
+        }
+      });
+    
+    if (error) {
+      console.error("Error sending real-time notification:", error);
+    } else {
+      console.log("Real-time notification sent successfully");
+    }
+  } catch (error) {
+    console.error("Failed to send real-time notification:", error);
+  }
+}
 
 async function createTuneWithImages(requestBody, userId, corsHeaders) {
   try {
@@ -245,6 +272,12 @@ async function createTuneWithImages(requestBody, userId, corsHeaders) {
           console.error("Database error storing model:", modelError);
         } else if (modelData && modelData.length > 0) {
           console.log("Stored model in database with ID:", modelData[0].id);
+          
+          // Send real-time notification for tune creation
+          await sendRealtimeNotification(userId, 'tune-created', {
+            tuneId: result.id,
+            status: result.status || 'training'
+          });
         }
       } catch (dbError) {
         console.error("Error storing model in database:", dbError);
@@ -279,9 +312,9 @@ async function createTuneWithImages(requestBody, userId, corsHeaders) {
   }
 }
 
-async function checkTuneStatus(requestBody, corsHeaders) {
+async function checkTuneStatus(requestBody, userId, corsHeaders) {
   try {
-    console.log("Checking tune status");
+    console.log("Checking tune status for user:", userId);
     
     const { tuneId } = requestBody;
     
@@ -339,19 +372,21 @@ async function checkTuneStatus(requestBody, corsHeaders) {
       );
     }
     
-    // Update status in database if possible - FIXED: use correct field name
+    // Update status in database and send real-time notifications
     try {
       if (result.id && result.status) {
         // Find the model with this tune ID - use lowercase 'modelid'
         const { data: models, error: findError } = await supabase
           .from('models')
-          .select('id')
+          .select('id, status')
           .eq('modelid', tuneId)
           .limit(1);
         
         if (findError) {
           console.error("Error finding model:", findError);
         } else if (models && models.length > 0) {
+          const previousStatus = models[0].status;
+          
           const { error: updateError } = await supabase
             .from('models')
             .update({ status: result.status })
@@ -360,7 +395,25 @@ async function checkTuneStatus(requestBody, corsHeaders) {
           if (updateError) {
             console.error("Database error updating model status:", updateError);
           } else {
-            console.log("Updated model status to:", result.status);
+            console.log(`Updated model status from ${previousStatus} to:`, result.status);
+            
+            // Check if training completed (has trained_at field)
+            if (result.trained_at && previousStatus !== 'completed') {
+              console.log("Training completed! Sending real-time notification");
+              
+              // Update to completed status
+              await supabase
+                .from('models')
+                .update({ status: 'completed' })
+                .eq('id', models[0].id);
+              
+              // Send real-time notification for training completion
+              await sendRealtimeNotification(userId, 'training-completed', {
+                tuneId: result.id,
+                status: 'completed',
+                trainedAt: result.trained_at
+              });
+            }
           }
         } else {
           console.log("No model found with tune ID:", tuneId);
