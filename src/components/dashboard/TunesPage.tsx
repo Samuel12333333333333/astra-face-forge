@@ -9,12 +9,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 interface Tune {
-  id: string;
-  name: string;
+  id: number;
+  name: string | null;
   status: string;
-  modelid: string;
+  modelid: string | null;
   created_at: string;
-  type: string;
+  type: string | null;
+  user_id: string | null;
 }
 
 const TunesPage = () => {
@@ -124,7 +125,7 @@ const TunesPage = () => {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">
-                    {tune.name || `Model ${tune.id.slice(-8)}`}
+                    {tune.name || `Model ${tune.id.toString().slice(-8)}`}
                   </CardTitle>
                   <Badge className={getStatusColor(tune.status)}>
                     {getStatusText(tune.status)}
@@ -136,7 +137,7 @@ const TunesPage = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {tune.status === 'completed' && (
+                  {tune.status === 'completed' && tune.modelid && (
                     <>
                       <Link to={`/dashboard/tunes/${tune.modelid}/generate`}>
                         <Button className="w-full bg-brand-600 hover:bg-brand-700">
