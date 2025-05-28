@@ -17,7 +17,7 @@ import NotificationSettings from "@/components/dashboard/settings/NotificationSe
 const ModernDashboard = () => {
   return (
     <SidebarProvider defaultOpen={true}>
-      <div className="min-h-screen flex w-full">
+      <div className="min-h-screen flex w-full bg-background">
         <AppSidebar />
         <DashboardMain>
           <Routes>

@@ -109,15 +109,19 @@ export function AppSidebar() {
   const location = useLocation();
 
   return (
-    <Sidebar collapsible="icon" className="border-r">
-      <SidebarHeader className="border-b px-4 py-3">
+    <Sidebar collapsible="icon" className="border-r bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <SidebarHeader className="border-b px-4 py-3 h-16 flex flex-col justify-center">
         <WorkspaceDropdown />
-        <SearchCommand />
+        <div className="mt-2">
+          <SearchCommand />
+        </div>
       </SidebarHeader>
       
-      <SidebarContent className="px-2">
+      <SidebarContent className="px-2 py-2">
         <SidebarGroup>
-          <SidebarGroupLabel>Main Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel className="px-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Main Navigation
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {mainNavigation.map((item) => {
@@ -126,17 +130,17 @@ export function AppSidebar() {
                 
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={isActive}>
-                      <Link to={item.url} className="flex items-center gap-3">
+                    <SidebarMenuButton asChild isActive={isActive} tooltip={item.title}>
+                      <Link to={item.url} className="flex items-center gap-3 px-3 py-2">
                         <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
+                        <span className="flex-1">{item.title}</span>
                         {item.badge && (
-                          <span className="ml-auto bg-brand-600 text-white text-xs px-1.5 py-0.5 rounded-full">
+                          <span className="bg-brand-600 text-white text-xs px-1.5 py-0.5 rounded-full">
                             {item.badge}
                           </span>
                         )}
                         {item.isNew && (
-                          <span className="ml-auto bg-green-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+                          <span className="bg-green-500 text-white text-xs px-1.5 py-0.5 rounded-full">
                             New
                           </span>
                         )}
@@ -150,17 +154,19 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Quick Actions</SidebarGroupLabel>
+          <SidebarGroupLabel className="px-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Quick Actions
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {quickActions.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <Link to={item.url} className="flex items-center gap-3">
+                  <SidebarMenuButton asChild tooltip={item.title}>
+                    <Link to={item.url} className="flex items-center gap-3 px-3 py-2">
                       <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
+                      <span className="flex-1">{item.title}</span>
                       {item.premium && (
-                        <Crown className="ml-auto h-3 w-3 text-amber-500" />
+                        <Crown className="h-3 w-3 text-amber-500" />
                       )}
                     </Link>
                   </SidebarMenuButton>
@@ -177,10 +183,10 @@ export function AppSidebar() {
                 <Collapsible key={item.title} className="group/collapsible">
                   <SidebarMenuItem>
                     <CollapsibleTrigger asChild>
-                      <SidebarMenuButton className="flex items-center gap-3">
+                      <SidebarMenuButton tooltip={item.title} className="flex items-center gap-3 px-3 py-2">
                         <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                        <ChevronRight className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                        <span className="flex-1">{item.title}</span>
+                        <ChevronRight className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
                       </SidebarMenuButton>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
@@ -190,7 +196,7 @@ export function AppSidebar() {
                           return (
                             <SidebarMenuSubItem key={subItem.title}>
                               <SidebarMenuSubButton asChild isActive={isActive}>
-                                <Link to={subItem.url} className="flex items-center gap-3">
+                                <Link to={subItem.url} className="flex items-center gap-3 pl-6 py-2">
                                   <subItem.icon className="h-4 w-4" />
                                   <span>{subItem.title}</span>
                                 </Link>
@@ -208,7 +214,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t">
+      <SidebarFooter className="border-t p-4">
         <UserProfileDropdown />
       </SidebarFooter>
       
