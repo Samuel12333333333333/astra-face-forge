@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { Camera, User, LogOut, Info, Image } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { MobileMenu } from "@/components/MobileMenu";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -94,7 +95,7 @@ const Header: React.FC = () => {
           <span className="font-bold text-xl text-foreground">AI Headshots</span>
         </Link>
         
-        <div className="flex items-center gap-4">
+        <div className="hidden md:flex items-center gap-4">
           <a href="#how-it-works" className="hover:text-brand-600 transition-colors">
             <Button variant="ghost" size="sm">
               <Info className="mr-2 h-4 w-4" />
@@ -120,10 +121,15 @@ const Header: React.FC = () => {
                       {user.email ? user.email.substring(0, 2).toUpperCase() : "UN"}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="hidden md:inline max-w-[150px] truncate text-sm font-medium">{user.email}</span>
+                  <span className="hidden lg:inline max-w-[150px] truncate text-sm font-medium">{user.email}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem asChild>
+                  <Link to="/dashboard" className="cursor-pointer">
+                    Dashboard
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-red-500 focus:text-red-500 focus:bg-red-50">
                   <LogOut className="mr-2 h-4 w-4" /> Sign Out
                 </DropdownMenuItem>
@@ -134,6 +140,17 @@ const Header: React.FC = () => {
               <User className="mr-2 h-4 w-4" /> Sign In
             </Button>
           )}
+        </div>
+
+        <div className="flex md:hidden items-center gap-2">
+          {user && (
+            <Link to="/dashboard">
+              <Button variant="ghost" size="sm">
+                Dashboard
+              </Button>
+            </Link>
+          )}
+          <MobileMenu />
         </div>
       </div>
     </header>
