@@ -29,20 +29,29 @@ const TunesPage = () => {
   const loadTunes = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        console.log("No authenticated user found");
+        setIsLoading(false);
+        return;
+      }
 
+      console.log("Fetching models for user:", user.id);
       const { data, error } = await supabase
         .from('models')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
 
+      console.log("Loaded tunes from Supabase:", data);
       setTunes(data || []);
     } catch (error: any) {
       console.error('Error loading tunes:', error);
-      toast.error('Failed to load your AI models');
+      toast.error('Failed to load your AI models from database');
     } finally {
       setIsLoading(false);
     }
@@ -51,14 +60,14 @@ const TunesPage = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-100 text-green-800 border-green-200';
       case 'processing':
       case 'training':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       case 'failed':
-        return 'bg-red-100 text-red-800';
+        return 'bg-red-100 text-red-800 border-red-200';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
@@ -79,7 +88,7 @@ const TunesPage = () => {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="p-6">
         <div className="animate-pulse">
           <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -93,8 +102,8 @@ const TunesPage = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-gray-900">My AI Models</h1>
         <Link to="/">
           <Button className="bg-brand-600 hover:bg-brand-700">

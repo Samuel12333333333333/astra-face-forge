@@ -5,6 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { BreadcrumbNavigation } from "@/components/dashboard/BreadcrumbNavigation";
 import { NotificationCenter } from "@/components/dashboard/NotificationCenter";
 import { CommandPalette } from "@/components/dashboard/CommandPalette";
+import { UserProfileDropdown } from "@/components/dashboard/UserProfileDropdown";
 
 interface DashboardMainProps {
   children: React.ReactNode;
@@ -21,13 +22,12 @@ export function DashboardMain({ children }: DashboardMainProps) {
         </div>
         <div className="flex items-center gap-2">
           <NotificationCenter />
+          <UserProfileDropdown />
         </div>
       </header>
       
-      <main className="flex-1 overflow-auto">
-        <div className="container mx-auto p-4 space-y-4">
-          {children}
-        </div>
+      <main className="flex-1 overflow-auto p-0">
+        {children}
       </main>
       
       <CommandPalette />
