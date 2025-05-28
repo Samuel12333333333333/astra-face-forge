@@ -19,7 +19,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
 }) => {
   const [isTraining, setIsTraining] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [status, setStatus] = useState<'idle' | 'creating-tune' | 'uploading-images' | 'training' | 'completed' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'creating-tune' | 'training' | 'completed' | 'error'>('idle');
   const [tuneId, setTuneId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [startTime, setStartTime] = useState<Date | null>(null);
@@ -70,11 +70,42 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
       // Show upfront expectations
       toast.info("Starting AI model training - this will take 20-30 minutes for the best quality results");
 
-      // Step 1: Create the tune first
-      console.log("Creating tune...");
+      console.log("Converting images to base64...");
+      setProgress(10);
+
+      // Convert all images to base64
+      const base64Images: string[] = [];
+      for (let i = 0; i < images.length; i++) {
+        const file = images[i];
+        console.log(`Converting image ${i+1}/${images.length}: ${file.name} (${file.size} bytes)`);
+        
+        try {
+          const base64Data = await fileToBase64(file);
+          base64Images.push(base64Data);
+          console.log(`Converted ${file.name} to base64`);
+        } catch (conversionError: any) {
+          console.error(`Error converting image ${i+1}:`, conversionError);
+          toast.warning(`Could not process image ${i+1}: ${file.name}`);
+          // Continue with other images
+        }
+
+        // Update progress for image conversion
+        const conversionProgress = 10 + ((i + 1) / images.length) * 20; // 10-30%
+        setProgress(conversionProgress);
+      }
+
+      if (base64Images.length === 0) {
+        throw new Error("Failed to convert any images to base64");
+      }
+
+      console.log(`Successfully converted ${base64Images.length} images. Creating tune with images...`);
+      setProgress(30);
+
+      // Create tune with all images in one request
       const { data: tuneData, error: tuneError } = await supabase.functions.invoke('astria', {
         body: {
-          action: 'create-tune'
+          action: 'create-tune-with-images',
+          images: base64Images
         }
       });
 
@@ -92,67 +123,15 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
       console.log("Tune created successfully with ID:", createdTuneId);
       
       setTuneId(createdTuneId);
-      setStatus('uploading-images');
-      setProgress(20);
+      setStatus('training');
+      setProgress(50);
 
       // Store tune ID for persistence
       localStorage.setItem('currentTuneId', createdTuneId);
-      localStorage.setItem('trainingStatus', 'uploading-images');
-
-      // Step 2: Upload images to the tune
-      let uploadedCount = 0;
-      for (let i = 0; i < images.length; i++) {
-        const file = images[i];
-        console.log(`Uploading image ${i+1}/${images.length}: ${file.name} (${file.size} bytes)`);
-        
-        try {
-          // Convert file to base64
-          const base64Data = await fileToBase64(file);
-          console.log(`Converted ${file.name} to base64, length: ${base64Data.length}`);
-          
-          // Upload to the tune with the created tuneId
-          const { data: uploadData, error: uploadError } = await supabase.functions.invoke('astria', {
-            body: {
-              action: 'upload-images',
-              image: base64Data,
-              filename: file.name,
-              contentType: file.type,
-              tuneId: createdTuneId // Explicitly pass the tuneId
-            }
-          });
-          
-          if (uploadError) {
-            console.error(`Upload error for image ${i+1}:`, uploadError);
-            toast.error(`Error uploading image ${i+1}: ${uploadError.message}`);
-            // Continue with other images instead of failing completely
-          } else {
-            uploadedCount++;
-            console.log(`Successfully uploaded image ${i+1}, response:`, uploadData);
-          }
-        } catch (uploadError: any) {
-          console.error(`Upload error for image ${i+1}:`, uploadError);
-          toast.error(`Error uploading image ${i+1}: ${uploadError.message}`);
-          // Continue with other images instead of failing completely
-        }
-
-        // Update progress
-        const uploadProgress = 20 + ((i + 1) / images.length) * 30; // 20-50%
-        setProgress(uploadProgress);
-      }
-
-      if (uploadedCount === 0) {
-        throw new Error("Failed to upload any images");
-      }
-
-      console.log(`Successfully uploaded ${uploadedCount} out of ${images.length} images`);
-      
-      // Step 3: Start training by checking status (training starts automatically)
-      setStatus('training');
-      setProgress(50);
       localStorage.setItem('trainingStatus', 'training');
 
       // Show training started message
-      toast.success(`Training started with ${uploadedCount} images. We'll email you when it's ready!`);
+      toast.success(`Training started with ${base64Images.length} images. We'll email you when it's ready!`);
 
       // Poll for training completion
       await pollTrainingStatus(createdTuneId);

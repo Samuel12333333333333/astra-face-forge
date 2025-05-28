@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 
@@ -80,10 +81,8 @@ serve(async (req) => {
     
     // Route requests based on action
     switch(action) {
-      case 'upload-images':
-        return await handleImageUpload(requestBody, corsHeaders, userId);
-      case 'create-tune':
-        return await createTune(requestBody, userId, corsHeaders);
+      case 'create-tune-with-images':
+        return await createTuneWithImages(requestBody, userId, corsHeaders);
       case 'generate-headshots':
         return await generateHeadshots(requestBody, userId, corsHeaders);
       case 'check-status':
@@ -104,187 +103,79 @@ serve(async (req) => {
   }
 });
 
-async function handleImageUpload(requestData, corsHeaders, userId) {
+async function createTuneWithImages(requestBody, userId, corsHeaders) {
   try {
-    console.log("Processing image upload");
+    console.log("Processing create tune with images request for user:", userId);
     
     // Check if we have the required data
-    if (!requestData || !requestData.image) {
-      console.error("No image data in request");
+    if (!requestBody || !requestBody.images || !Array.isArray(requestBody.images)) {
+      console.error("No images array in request");
       return new Response(
-        JSON.stringify({ error: "No image data provided" }),
+        JSON.stringify({ error: "Images array is required" }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
-    // Check if we have a tuneId for the API endpoint
-    if (!requestData.tuneId) {
-      console.error("No tuneId provided for image upload");
+    const { images } = requestBody;
+    
+    if (images.length === 0) {
+      console.error("Empty images array");
       return new Response(
-        JSON.stringify({ error: "tuneId is required for image upload" }),
+        JSON.stringify({ error: "At least one image is required" }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
-    const { image: base64Data, filename, contentType, tuneId } = requestData;
+    console.log(`Creating tune with ${images.length} images`);
     
-    // Validate the base64 data - accept both data:image and raw base64
-    if (!base64Data || typeof base64Data !== 'string') {
-      console.error("Invalid image data format");
-      return new Response(
-        JSON.stringify({ error: "Invalid image data format" }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
-    console.log(`Received image data for: ${filename || 'unnamed file'}`);
-    
-    let imageBlob;
-    try {
-      // Handle both data:image/... format and raw base64
-      if (base64Data.startsWith('data:')) {
-        const base64Response = await fetch(base64Data);
-        imageBlob = await base64Response.blob();
-      } else {
-        // Raw base64 - decode and create blob
-        const binaryString = atob(base64Data);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        imageBlob = new Blob([bytes], { type: contentType || 'image/jpeg' });
-      }
-    } catch (error) {
-      console.error("Error processing base64 data:", error);
-      return new Response(
-        JSON.stringify({ error: "Failed to process image data", details: error.message }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
-    if (!imageBlob || imageBlob.size === 0) {
-      console.error("Empty image blob after conversion");
-      return new Response(
-        JSON.stringify({ error: "Image data conversion failed" }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
-    console.log(`Converted to blob: ${contentType || imageBlob.type}, size: ${imageBlob.size} bytes`);
-    
-    // Create FormData for Astria API
-    const formData = new FormData();
-    const actualFileName = filename || `user_upload_${Date.now()}.${(contentType || 'image/jpeg').split('/')[1] || 'jpg'}`;
-    const imageFile = new File([imageBlob], actualFileName, { type: contentType || imageBlob.type || 'image/jpeg' });
-    formData.append('image', imageFile);
-    
-    // Send to Astria API with explicit timeout handling
-    console.log(`Sending to Astria API: https://api.astria.ai/tunes/${tuneId}/images`);
-    
+    // Create tune with images using FormData
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2-minute timeout
     
     try {
-      const response = await fetch(`https://api.astria.ai/tunes/${tuneId}/images`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${ASTRIA_API_KEY}`
-        },
-        body: formData,
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      console.log(`Astria API response status: ${response.status}`);
-      
-      // Get the response text first for better error logging
-      let responseText = "";
-      try {
-        responseText = await response.text();
-        console.log("Astria API response body:", responseText);
-      } catch (e) {
-        console.error("Could not read response text:", e);
-      }
-      
-      let result;
-      try {
-        result = JSON.parse(responseText);
-        console.log("Astria API response:", JSON.stringify(result));
-      } catch (e) {
-        console.error("Failed to parse JSON response:", e);
-        return new Response(
-          JSON.stringify({ error: "Failed to parse API response", raw: responseText.substring(0, 500) }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      // Check if the API returned an error response in a 200 OK wrapper
-      if (result.status === 404 || result.error) {
-        console.error("Astria API error in 200 response:", result);
-        return new Response(
-          JSON.stringify({ 
-            error: "Astria API error", 
-            status: result.status || 500,
-            details: result.error || "Unknown error" 
-          }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      if (!result.id) {
-        return new Response(
-          JSON.stringify({ error: "No image ID returned from Astria API", response: result }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      return new Response(
-        JSON.stringify(result),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    } catch (fetchError) {
-      console.error("Fetch error with Astria API:", fetchError);
-      
-      if (fetchError.name === 'AbortError') {
-        return new Response(
-          JSON.stringify({ error: "Request to Astria API timed out" }),
-          { status: 408, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      return new Response(
-        JSON.stringify({ error: `Fetch error: ${fetchError.message}` }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-  } catch (error) {
-    console.error('Image upload error:', error);
-    return new Response(
-      JSON.stringify({ error: `Image upload failed: ${error.message}` }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-}
-
-async function createTune(requestBody, userId, corsHeaders) {
-  try {
-    console.log("Processing create tune request for user:", userId);
-    
-    // Create tune with Astria API - without images first
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000); // 1-minute timeout
-    
-    try {
-      // Correct endpoint for Flux API
       const formData = new FormData();
       formData.append('tune[title]', `headshot_user_${userId.substring(0, 8)}`);
-      formData.append('tune[base_tune_id]', FLUX_BASE_MODEL_ID.toString()); // Flux1.dev base model
+      formData.append('tune[base_tune_id]', FLUX_BASE_MODEL_ID.toString());
       formData.append('tune[model_type]', 'lora');
       formData.append('tune[name]', 'person');
       formData.append('tune[preset]', 'flux-lora-portrait');
       formData.append('tune[instance_prompt]', `photo of sks${userId.substring(0, 8)} person`);
       formData.append('tune[class_prompt]', 'person');
       
+      // Add all images to the FormData
+      for (let i = 0; i < images.length; i++) {
+        const imageData = images[i];
+        console.log(`Processing image ${i + 1}/${images.length}`);
+        
+        try {
+          let imageBlob;
+          if (imageData.startsWith('data:')) {
+            const base64Response = await fetch(imageData);
+            imageBlob = await base64Response.blob();
+          } else {
+            // Raw base64 - decode and create blob
+            const binaryString = atob(imageData);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let j = 0; j < binaryString.length; j++) {
+              bytes[j] = binaryString.charCodeAt(j);
+            }
+            imageBlob = new Blob([bytes], { type: 'image/jpeg' });
+          }
+          
+          if (imageBlob && imageBlob.size > 0) {
+            const imageFile = new File([imageBlob], `image_${i + 1}.jpg`, { type: 'image/jpeg' });
+            formData.append('tune[images][]', imageFile);
+            console.log(`Added image ${i + 1} to FormData, size: ${imageBlob.size} bytes`);
+          } else {
+            console.error(`Failed to process image ${i + 1}: empty blob`);
+          }
+        } catch (imageError) {
+          console.error(`Error processing image ${i + 1}:`, imageError);
+          // Continue with other images instead of failing completely
+        }
+      }
+      
+      console.log("Sending tune creation request to Astria API...");
       const response = await fetch(`https://api.astria.ai/tunes`, {
         method: 'POST',
         headers: {
@@ -381,7 +272,7 @@ async function createTune(requestBody, userId, corsHeaders) {
       );
     }
   } catch (error) {
-    console.error('Create tune error:', error);
+    console.error('Create tune with images error:', error);
     return new Response(
       JSON.stringify({ error: `Tune creation failed: ${error.message}` }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
