@@ -13,8 +13,23 @@ import GalleryPage from "@/components/dashboard/GalleryPage";
 import AccountSettings from "@/components/dashboard/settings/AccountSettings";
 import BillingSettings from "@/components/dashboard/settings/BillingSettings";
 import NotificationSettings from "@/components/dashboard/settings/NotificationSettings";
+import { useUser } from "@/contexts/UserContext";
 
 const ModernDashboard = () => {
+  const { user, loading } = useUser();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+
   return (
     <SidebarProvider defaultOpen={true}>
       <div className="min-h-screen flex w-full bg-background">
@@ -28,7 +43,9 @@ const ModernDashboard = () => {
             <Route path="tunes/:tuneId/overview" element={<TuneOverviewPage />} />
             <Route path="tunes/:tuneId/generate" element={<GeneratePage />} />
             <Route path="tunes/:tuneId/gallery" element={<GalleryPage />} />
+            <Route path="generate" element={<GeneratePage />} />
             <Route path="gallery" element={<GalleryPage />} />
+            <Route path="analytics" element={<DashboardOverview />} />
             <Route path="settings/account" element={<AccountSettings />} />
             <Route path="settings/billing" element={<BillingSettings />} />
             <Route path="settings/notifications" element={<NotificationSettings />} />

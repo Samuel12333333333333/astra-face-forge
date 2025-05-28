@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+
+import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Sidebar,
@@ -34,8 +35,7 @@ import {
   ChevronRight
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { supabase } from "@/integrations/supabase/client";
-import { User as SupabaseUser } from "@supabase/supabase-js";
+import { useUser } from "@/contexts/UserContext";
 
 const mainNavigation = [
   {
@@ -47,11 +47,10 @@ const mainNavigation = [
     title: "My Tunes",
     url: "/dashboard/tunes",
     icon: Camera,
-    badge: "3",
   },
   {
     title: "Generate",
-    url: "/dashboard/tunes",
+    url: "/dashboard/generate",
     icon: Sparkles,
     isNew: true,
   },
@@ -108,24 +107,7 @@ const quickActions = [
 
 export function AppSidebar() {
   const location = useLocation();
-  const [user, setUser] = useState<SupabaseUser | null>(null);
-
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-    };
-
-    getUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user ?? null);
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, []);
+  const { user } = useUser();
 
   return (
     <Sidebar collapsible="icon" className="border-r bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -153,11 +135,6 @@ export function AppSidebar() {
                       <Link to={item.url} className="flex items-center gap-3 px-3 py-2">
                         <item.icon className="h-4 w-4" />
                         <span className="flex-1">{item.title}</span>
-                        {item.badge && (
-                          <span className="bg-brand-600 text-white text-xs px-1.5 py-0.5 rounded-full">
-                            {item.badge}
-                          </span>
-                        )}
                         {item.isNew && (
                           <span className="bg-green-500 text-white text-xs px-1.5 py-0.5 rounded-full">
                             New

@@ -1,33 +1,15 @@
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { BreadcrumbNavigation } from "@/components/dashboard/BreadcrumbNavigation";
 import { NotificationCenter } from "@/components/dashboard/NotificationCenter";
 import { UserProfileDropdown } from "@/components/dashboard/UserProfileDropdown";
 import { CommandPalette } from "@/components/dashboard/CommandPalette";
-import { supabase } from "@/integrations/supabase/client";
-import { User } from "@supabase/supabase-js";
+import { useUser } from "@/contexts/UserContext";
 
 export function TopNavigation() {
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-    };
-
-    getUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user ?? null);
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, []);
+  const { user } = useUser();
 
   return (
     <>

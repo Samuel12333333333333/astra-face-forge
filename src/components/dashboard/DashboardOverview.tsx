@@ -1,115 +1,46 @@
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Camera, Plus, Sparkles, TrendingUp, Users, Zap, Clock } from "lucide-react";
+import { Camera, Plus, Sparkles, TrendingUp, Clock, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-
-interface DashboardStats {
-  totalModels: number;
-  activeModels: number;
-  processingModels: number;
-  totalImages: number;
-  recentActivity: any[];
-}
+import { useUser } from "@/contexts/UserContext";
+import { useModels } from "@/hooks/useModels";
+import { useImages } from "@/hooks/useImages";
 
 const DashboardOverview = () => {
-  const [stats, setStats] = useState<DashboardStats>({
-    totalModels: 0,
-    activeModels: 0,
-    processingModels: 0,
-    totalImages: 0,
-    recentActivity: []
-  });
-  const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
+  const { user } = useUser();
+  const { data: models = [], isLoading: modelsLoading, error: modelsError } = useModels();
+  const { data: images = [], isLoading: imagesLoading, error: imagesError } = useImages();
 
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
+  const isLoading = modelsLoading || imagesLoading;
+  const hasError = modelsError || imagesError;
 
-  const loadDashboardData = async () => {
-    try {
-      setIsLoading(true);
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      
-      if (!currentUser) {
-        console.log("No authenticated user found");
-        setIsLoading(false);
-        return;
-      }
+  // Calculate stats from real data
+  const totalModels = models.length;
+  const activeModels = models.filter(m => m.status === 'completed').length;
+  const processingModels = models.filter(m => m.status === 'processing' || m.status === 'training').length;
+  const totalImages = images.length;
 
-      setUser(currentUser);
-
-      // Load models data
-      const { data: models, error: modelsError } = await supabase
-        .from('models')
-        .select('*')
-        .eq('user_id', currentUser.id)
-        .order('created_at', { ascending: false });
-
-      if (modelsError) {
-        console.error('Error loading models:', modelsError);
-        throw modelsError;
-      }
-
-      // Load images data with proper join
-      const { data: images, error: imagesError } = await supabase
-        .from('images')
-        .select(`
-          *,
-          models!inner(user_id)
-        `)
-        .eq('models.user_id', currentUser.id)
-        .order('created_at', { ascending: false });
-
-      if (imagesError) {
-        console.error('Error loading images:', imagesError);
-      }
-
-      const allModels = models || [];
-      const allImages = images || [];
-      
-      const activeModels = allModels.filter(m => m.status === 'completed');
-      const processingModels = allModels.filter(m => m.status === 'processing' || m.status === 'training');
-      
-      // Create recent activity feed
-      const recentActivity = [
-        ...allModels.slice(0, 3).map(model => ({
-          type: 'model',
-          action: `Model ${model.status}`,
-          name: model.name || `Model ${model.id.toString().slice(-8)}`,
-          timestamp: model.created_at,
-          status: model.status
-        })),
-        ...allImages.slice(0, 3).map(image => ({
-          type: 'image',
-          action: 'Image generated',
-          name: 'New headshot',
-          timestamp: image.created_at,
-          status: 'completed'
-        }))
-      ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 5);
-      
-      setStats({
-        totalModels: allModels.length,
-        activeModels: activeModels.length,
-        processingModels: processingModels.length,
-        totalImages: allImages.length,
-        recentActivity
-      });
-
-    } catch (error: any) {
-      console.error('Error loading dashboard data:', error);
-      toast.error('Failed to load dashboard data');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Create recent activity from real data
+  const recentActivity = [
+    ...models.slice(0, 3).map(model => ({
+      type: 'model',
+      action: `Model ${model.status}`,
+      name: model.name || `Model ${model.id.toString().slice(-8)}`,
+      timestamp: model.created_at,
+      status: model.status
+    })),
+    ...images.slice(0, 3).map(image => ({
+      type: 'image',
+      action: 'Image generated',
+      name: 'New image',
+      timestamp: image.created_at,
+      status: 'completed'
+    }))
+  ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 5);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -127,7 +58,7 @@ const DashboardOverview = () => {
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="space-y-6">
         <div className="animate-pulse space-y-6">
           <div className="h-8 bg-gray-200 rounded w-1/3"></div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -139,6 +70,17 @@ const DashboardOverview = () => {
             <div className="h-64 bg-gray-200 rounded"></div>
             <div className="h-64 bg-gray-200 rounded"></div>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (hasError) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-12">
+          <p className="text-red-600 mb-4">Failed to load dashboard data</p>
+          <Button onClick={() => window.location.reload()}>Retry</Button>
         </div>
       </div>
     );
@@ -168,9 +110,9 @@ const DashboardOverview = () => {
             <Camera className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalModels}</div>
+            <div className="text-2xl font-bold">{totalModels}</div>
             <p className="text-xs text-muted-foreground">
-              {stats.totalModels === 0 ? 'No models yet' : 'All time'}
+              {totalModels === 0 ? 'No models yet' : 'All time'}
             </p>
           </CardContent>
         </Card>
@@ -181,7 +123,7 @@ const DashboardOverview = () => {
             <Zap className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.activeModels}</div>
+            <div className="text-2xl font-bold">{activeModels}</div>
             <p className="text-xs text-muted-foreground">Ready to generate</p>
           </CardContent>
         </Card>
@@ -192,7 +134,7 @@ const DashboardOverview = () => {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.processingModels}</div>
+            <div className="text-2xl font-bold">{processingModels}</div>
             <p className="text-xs text-muted-foreground">Training in progress</p>
           </CardContent>
         </Card>
@@ -203,7 +145,7 @@ const DashboardOverview = () => {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalImages}</div>
+            <div className="text-2xl font-bold">{totalImages}</div>
             <p className="text-xs text-muted-foreground">Total created</p>
           </CardContent>
         </Card>
@@ -229,7 +171,7 @@ const DashboardOverview = () => {
                   View My Models
                 </Button>
               </Link>
-              {stats.activeModels > 0 && (
+              {activeModels > 0 && (
                 <Link to="/dashboard/generate" className="block">
                   <Button variant="outline" className="w-full">
                     <Sparkles className="mr-2 h-4 w-4" />
@@ -247,9 +189,9 @@ const DashboardOverview = () => {
             <CardDescription>Your latest actions and updates</CardDescription>
           </CardHeader>
           <CardContent>
-            {stats.recentActivity.length > 0 ? (
+            {recentActivity.length > 0 ? (
               <div className="space-y-4">
-                {stats.recentActivity.map((activity, index) => (
+                {recentActivity.map((activity, index) => (
                   <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex-1">
                       <p className="font-medium">{activity.action}</p>
