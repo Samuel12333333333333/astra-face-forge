@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,10 +31,18 @@ const TuneOverviewPage = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Convert tuneId from string to number
+      const tuneIdNumber = tuneId ? parseInt(tuneId, 10) : null;
+      if (!tuneIdNumber || isNaN(tuneIdNumber)) {
+        toast.error('Invalid model ID');
+        setIsLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('models')
         .select('*')
-        .eq('id', tuneId)
+        .eq('id', tuneIdNumber)
         .eq('user_id', user.id)
         .single();
 
