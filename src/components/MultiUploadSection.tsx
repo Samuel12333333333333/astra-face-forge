@@ -27,8 +27,9 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files ? Array.from(e.target.files) : [];
     
-    if (files.length + selectedFiles.length > 12) {
-      toast.error("Maximum 12 photos allowed");
+    // STRICT ENFORCEMENT: Maximum 20 images
+    if (files.length + selectedFiles.length > 20) {
+      toast.error("Maximum 20 training images allowed for optimal model performance");
       return;
     }
 
@@ -67,12 +68,19 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
   };
 
   const startTraining = async () => {
+    // STRICT ENFORCEMENT: 5-20 images required
     if (files.length < 5) {
-      toast.error("Please upload at least 5 photos for best results");
+      toast.error("You must upload between 5 and 20 training images. Currently have " + files.length);
       return;
     }
-    if (!modelName.trim()) {
-      toast.error("Please enter a model name");
+    if (files.length > 20) {
+      toast.error("Maximum 20 training images allowed. Please remove " + (files.length - 20) + " images.");
+      return;
+    }
+    
+    // STRICT ENFORCEMENT: Model name required
+    if (!modelName.trim() || modelName.trim().length < 3) {
+      toast.error("Please enter a model name (minimum 3 characters)");
       return;
     }
 
@@ -85,11 +93,22 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
         return;
       }
 
+      console.log("Starting training with", {
+        imageCount: files.length,
+        modelName: modelName.trim(),
+        userId: user.id
+      });
+
       // Convert images to base64
       const imageData: string[] = [];
       for (const file of files) {
         const base64 = await fileToBase64(file);
         if (base64) imageData.push(base64);
+      }
+
+      // STRICT ENFORCEMENT: Verify we have the right amount of processed images
+      if (imageData.length < 5 || imageData.length > 20) {
+        throw new Error(`Image processing failed. Expected 5-20 images, got ${imageData.length}`);
       }
 
       const { data, error } = await supabase.functions.invoke('astria', {
@@ -103,10 +122,13 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
       if (error) throw error;
 
       if (data?.id) {
-        toast.success('Training started! Check your dashboard for progress.');
+        toast.success('Training started! Model will be ready in 15-25 minutes.');
         navigate('/dashboard/tunes');
+      } else {
+        throw new Error('No model ID returned from training service');
       }
     } catch (error: any) {
+      console.error('Training error:', error);
       toast.error(`Training failed: ${error.message}`);
     } finally {
       setIsUploading(false);
@@ -132,7 +154,7 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
         <CardHeader>
           <CardTitle>Upload Training Photos</CardTitle>
           <CardDescription>
-            Upload 5-12 high-quality photos of yourself for AI model training
+            Upload 10-15 high-quality images with clear facial visibility, different angles, and neutral backgrounds for best model performance
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -143,12 +165,13 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
               placeholder="e.g., John Business Headshots V1"
               value={modelName}
               onChange={(e) => setModelName(e.target.value)}
+              minLength={3}
             />
           </div>
 
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <Label>Photos ({files.length}/12)</Label>
+              <Label>Photos ({files.length}/20) - Need at least 5</Label>
               <input
                 type="file"
                 id="photo-upload"
@@ -160,7 +183,7 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
               <Button
                 variant="outline"
                 onClick={() => document.getElementById('photo-upload')?.click()}
-                disabled={files.length >= 12}
+                disabled={files.length >= 20}
               >
                 <Upload className="mr-2 h-4 w-4" />
                 Add Photos
@@ -173,9 +196,9 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
                 onClick={() => document.getElementById('photo-upload')?.click()}
               >
                 <Camera className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Upload your photos</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Upload 5-20 training photos</h3>
                 <p className="text-gray-500">
-                  Click here to select photos. Use clear, well-lit photos with good facial visibility.
+                  Click to select photos. Use clear, well-lit images showing your face from different angles.
                 </p>
               </div>
             ) : (
@@ -207,19 +230,28 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
           </div>
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h4 className="font-medium text-blue-900 mb-2">Photo Guidelines:</h4>
+            <h4 className="font-medium text-blue-900 mb-2">STRICT Requirements for Best Results:</h4>
             <ul className="text-sm text-blue-700 space-y-1">
-              <li>• Use high-resolution photos (minimum 512x512 pixels)</li>
-              <li>• Include variety: different angles, expressions, and lighting</li>
-              <li>• Ensure good lighting and sharp focus</li>
-              <li>• Avoid sunglasses, hats, or heavy filters</li>
-              <li>• Include some close-up face shots and some upper body shots</li>
+              <li>• Upload exactly 5-20 high-quality images (recommended: 10-15)</li>
+              <li>• Include multiple angles: front, 3/4 profile, and side views</li>
+              <li>• At least 1 close-up portrait with clear facial features</li>
+              <li>• Consistent, natural lighting (avoid harsh shadows)</li>
+              <li>• No filters, text overlays, sunglasses, or obstructions</li>
+              <li>• Neutral backgrounds work best for professional results</li>
             </ul>
           </div>
 
+          {files.length < 5 && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <p className="text-orange-800 font-medium">
+                ⚠️ Need {5 - files.length} more images to start training
+              </p>
+            </div>
+          )}
+
           <Button 
             onClick={startTraining}
-            disabled={files.length < 5 || !modelName.trim() || isUploading}
+            disabled={files.length < 5 || files.length > 20 || !modelName.trim() || modelName.trim().length < 3 || isUploading}
             className="w-full bg-brand-600 hover:bg-brand-700"
             size="lg"
           >
