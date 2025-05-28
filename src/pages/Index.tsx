@@ -8,8 +8,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { User, ArrowRight, Camera, Sparkles } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const Index = () => {
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState<"upload" | "training" | "style" | "preview">("upload");
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
@@ -28,6 +30,11 @@ const Index = () => {
           console.log("Auth state changed in Index:", _event, session?.user?.id);
           setIsAuthenticated(!!session);
           setIsLoading(false);
+          
+          // Redirect to dashboard if authenticated and not in a training flow
+          if (session && currentStep === "upload") {
+            navigate('/dashboard');
+          }
         });
         
         // THEN check for existing session
@@ -35,6 +42,11 @@ const Index = () => {
         console.log("Current session in Index:", session?.user?.id);
         setIsAuthenticated(!!session);
         setIsLoading(false);
+        
+        // Redirect to dashboard if authenticated and not in a training flow
+        if (session && currentStep === "upload") {
+          navigate('/dashboard');
+        }
         
         return () => subscription.unsubscribe();
       } catch (error) {
@@ -46,7 +58,7 @@ const Index = () => {
     };
     
     checkAuth();
-  }, []);
+  }, [navigate, currentStep]);
   
   // Clear localStorage on mount if user is authenticated (fresh start)
   useEffect(() => {
