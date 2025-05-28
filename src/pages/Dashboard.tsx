@@ -5,6 +5,7 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
 import TunesPage from "@/components/dashboard/TunesPage";
 import TuneDetailPage from "@/components/dashboard/TuneDetailPage";
+import TuneOverviewPage from "@/components/dashboard/tunes/TuneOverviewPage";
 import GeneratePage from "@/components/dashboard/GeneratePage";
 import GalleryPage from "@/components/dashboard/GalleryPage";
 import AccountSettings from "@/components/dashboard/settings/AccountSettings";
@@ -19,6 +20,7 @@ const Dashboard = () => {
         <Route path="/overview" element={<DashboardOverview />} />
         <Route path="/tunes" element={<TunesPage />} />
         <Route path="/tunes/:tuneId" element={<TuneDetailPage />} />
+        <Route path="/tunes/:tuneId/overview" element={<TuneOverviewPage />} />
         <Route path="/tunes/:tuneId/generate" element={<GeneratePage />} />
         <Route path="/tunes/:tuneId/gallery" element={<GalleryPage />} />
         <Route path="/settings/account" element={<AccountSettings />} />
