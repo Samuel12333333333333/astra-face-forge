@@ -48,39 +48,15 @@ const Index = () => {
     checkAuth();
   }, []);
   
-  // Improved recovery from localStorage
+  // Clear localStorage on mount if user is authenticated (fresh start)
   useEffect(() => {
-    if (!isAuthenticated) return;
-    
-    const storedTuneId = localStorage.getItem('currentTuneId');
-    const storedStyle = localStorage.getItem('selectedStyle');
-    const storedStep = localStorage.getItem('currentStep') as "upload" | "training" | "style" | "preview" | null;
-    const trainingStatus = localStorage.getItem('trainingStatus');
-    
-    if (storedTuneId) {
-      console.log("Recovered tuneId from localStorage:", storedTuneId);
-      setTuneId(storedTuneId);
-      
-      // If we have a completed training, go to style selection
-      if (trainingStatus === 'completed' && !storedStep) {
-        setCurrentStep('style');
-        localStorage.setItem('currentStep', 'style');
-      }
-    }
-    
-    if (storedStyle) {
-      console.log("Recovered style from localStorage:", storedStyle);
-      setSelectedStyle(storedStyle);
-    }
-    
-    // Restore step, but prioritize training if we have an active session
-    if (storedStep) {
-      console.log("Recovered step from localStorage:", storedStep);
-      setCurrentStep(storedStep);
-    } else if (storedTuneId && trainingStatus && trainingStatus !== 'completed') {
-      // If we have training in progress, go to training step
-      setCurrentStep('training');
-      localStorage.setItem('currentStep', 'training');
+    if (isAuthenticated) {
+      console.log("Clearing any stale localStorage data");
+      localStorage.removeItem('currentTuneId');
+      localStorage.removeItem('trainingStatus');
+      localStorage.removeItem('trainingStartTime');
+      localStorage.removeItem('currentStep');
+      localStorage.removeItem('selectedStyle');
     }
   }, [isAuthenticated]);
 
@@ -107,8 +83,8 @@ const Index = () => {
   };
 
   const handleImagesUploaded = (files: File[]) => {
+    console.log(`Received ${files.length} files for training:`, files.map(f => f.name));
     setUploadedFiles(files);
-    console.log(`${files.length} files prepared for training`);
   };
 
   const handleTrainingComplete = (generatedTuneId: string) => {
@@ -129,6 +105,7 @@ const Index = () => {
   };
   
   const handleStepChange = (step: "upload" | "training" | "style" | "preview") => {
+    console.log("Changing step to:", step);
     setCurrentStep(step);
     // Store current step in localStorage
     localStorage.setItem('currentStep', step);
@@ -184,7 +161,7 @@ const Index = () => {
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8 max-w-2xl mx-auto">
                     <p className="text-blue-900 font-medium mb-2">⏱️ How it works:</p>
                     <div className="text-sm text-blue-700 space-y-1">
-                      <p>1. Upload 10+ photos (2 minutes)</p>
+                      <p>1. Upload 5+ photos (2 minutes)</p>
                       <p>2. AI trains your personal model (20-30 minutes)</p>
                       <p>3. Generate unlimited professional headshots (instant)</p>
                     </div>
@@ -203,6 +180,11 @@ const Index = () => {
                     We're creating a personalized AI model that understands your unique features. 
                     This ensures the highest quality and most accurate professional headshots.
                   </p>
+                  <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-amber-800 text-sm">
+                      📁 Using {uploadedFiles.length} images for training
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -210,7 +192,13 @@ const Index = () => {
             {currentStep === "upload" && (
               <MultiUploadSection 
                 onImagesUploaded={handleImagesUploaded}
-                onContinue={() => handleStepChange("training")}
+                onContinue={() => {
+                  if (uploadedFiles.length === 0) {
+                    toast.error("Please upload images first");
+                    return;
+                  }
+                  handleStepChange("training");
+                }}
               />
             )}
             
@@ -241,6 +229,7 @@ const Index = () => {
             {/* Updated how it works section */}
             {currentStep === "upload" && (
               <>
+                {/* ... keep existing code (how it works and examples sections) */}
                 <section id="how-it-works" className="py-16 border-t mt-16">
                   <div className="text-center max-w-3xl mx-auto mb-12">
                     <h2 className="text-3xl font-bold tracking-tighter mb-4">How It Works</h2>
@@ -253,7 +242,7 @@ const Index = () => {
                         <Camera className="h-6 w-6 text-brand-600" />
                       </div>
                       <h3 className="text-xl font-medium mb-2">1. Upload Photos</h3>
-                      <p className="text-muted-foreground mb-2">Upload 10+ clear photos with varied expressions and angles.</p>
+                      <p className="text-muted-foreground mb-2">Upload 5+ clear photos with varied expressions and angles.</p>
                       <p className="text-sm text-blue-600 font-medium">~2 minutes</p>
                     </div>
                     

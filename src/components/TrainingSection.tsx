@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Loader2, CheckCircle, RotateCcw } from "lucide-react";
@@ -24,111 +25,10 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<number | null>(null);
 
-  // Check for existing training session on mount with improved validation
+  // Debug: Log images on mount
   useEffect(() => {
-    const validateAndRecoverSession = async () => {
-      const storedTuneId = localStorage.getItem('currentTuneId');
-      const storedStatus = localStorage.getItem('trainingStatus');
-      const storedStartTime = localStorage.getItem('trainingStartTime');
-      
-      if (!storedTuneId || !storedStatus) {
-        console.log("No valid session to recover");
-        return;
-      }
-
-      // Check if the session is too old (more than 2 hours)
-      if (storedStartTime) {
-        const startTime = new Date(storedStartTime);
-        const now = new Date();
-        const hoursSinceStart = (now.getTime() - startTime.getTime()) / (1000 * 60 * 60);
-        
-        if (hoursSinceStart > 2) {
-          console.log("Session is too old, clearing stale data");
-          clearStoredSession();
-          return;
-        }
-      }
-
-      // Only recover if status indicates active training
-      if (storedStatus === 'training' || storedStatus === 'creating-tune' || storedStatus === 'uploading-images') {
-        console.log("Validating existing training session:", storedTuneId);
-        
-        // Validate the tune still exists and get its current status
-        try {
-          const { data, error } = await supabase.functions.invoke('astria', {
-            body: {
-              action: 'check-status',
-              tuneId: storedTuneId
-            }
-          });
-
-          if (error) {
-            console.error("Error validating session:", error);
-            clearStoredSession();
-            return;
-          }
-
-          const currentStatus = data?.status;
-          console.log("Current tune status from Astria:", currentStatus);
-
-          if (currentStatus === 'finished' || currentStatus === 'completed') {
-            // Training completed while user was away
-            setTuneId(storedTuneId);
-            setStatus('completed');
-            setProgress(100);
-            localStorage.setItem('trainingStatus', 'completed');
-            onTrainingComplete(storedTuneId);
-            toast.success("🎉 Your AI model training completed while you were away!");
-          } else if (currentStatus === 'training' || currentStatus === 'queued' || currentStatus === 'processing') {
-            // Valid ongoing training
-            console.log("Recovering valid training session:", storedTuneId);
-            setTuneId(storedTuneId);
-            setStatus('training');
-            setIsTraining(true);
-            setProgress(50); // Set a reasonable progress for ongoing training
-            
-            if (storedStartTime) {
-              setStartTime(new Date(storedStartTime));
-            }
-            
-            // Resume polling
-            pollTrainingStatus(storedTuneId);
-          } else if (currentStatus === 'failed' || currentStatus === 'error') {
-            // Training failed
-            setError("Training failed while you were away");
-            setStatus('error');
-            localStorage.setItem('trainingStatus', 'error');
-          } else {
-            // Unknown or invalid status, clear session
-            console.log("Invalid tune status, clearing session");
-            clearStoredSession();
-          }
-        } catch (error) {
-          console.error("Error validating training session:", error);
-          clearStoredSession();
-        }
-      } else if (storedStatus === 'completed') {
-        // Completed session
-        setTuneId(storedTuneId);
-        setStatus('completed');
-        setProgress(100);
-      } else {
-        // Invalid status, clear session
-        console.log("Invalid stored status, clearing session");
-        clearStoredSession();
-      }
-    };
-
-    validateAndRecoverSession();
-  }, []);
-
-  // Helper function to clear stored session
-  const clearStoredSession = () => {
-    localStorage.removeItem('currentTuneId');
-    localStorage.removeItem('trainingStatus');
-    localStorage.removeItem('trainingStartTime');
-    console.log("Cleared stale session data");
-  };
+    console.log("TrainingSection mounted with images:", images.length, images.map(f => f.name));
+  }, [images]);
 
   // Update estimated time remaining
   useEffect(() => {
@@ -145,8 +45,13 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
   }, [status, startTime]);
 
   const startTraining = async () => {
+    console.log("Starting training with", images.length, "images");
+    
     if (images.length === 0) {
-      toast.error("No images provided for training");
+      const errorMsg = "No images provided for training";
+      console.error(errorMsg);
+      toast.error(errorMsg);
+      setError(errorMsg);
       return;
     }
 
@@ -198,11 +103,12 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
       let uploadedCount = 0;
       for (let i = 0; i < images.length; i++) {
         const file = images[i];
-        console.log(`Uploading image ${i+1}/${images.length}: ${file.name}`);
+        console.log(`Uploading image ${i+1}/${images.length}: ${file.name} (${file.size} bytes)`);
         
         try {
           // Convert file to base64
           const base64Data = await fileToBase64(file);
+          console.log(`Converted ${file.name} to base64, length: ${base64Data.length}`);
           
           // Upload to the tune with the created tuneId
           const { data: uploadData, error: uploadError } = await supabase.functions.invoke('astria', {
@@ -211,7 +117,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
               image: base64Data,
               filename: file.name,
               contentType: file.type,
-              tuneId: createdTuneId // Pass the tuneId explicitly
+              tuneId: createdTuneId // Explicitly pass the tuneId
             }
           });
           
@@ -221,7 +127,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
             // Continue with other images instead of failing completely
           } else {
             uploadedCount++;
-            console.log(`Successfully uploaded image ${i+1}`);
+            console.log(`Successfully uploaded image ${i+1}, response:`, uploadData);
           }
         } catch (uploadError: any) {
           console.error(`Upload error for image ${i+1}:`, uploadError);
@@ -352,7 +258,9 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
 
   const handleRetry = () => {
     // Clear stored session
-    clearStoredSession();
+    localStorage.removeItem('currentTuneId');
+    localStorage.removeItem('trainingStatus');
+    localStorage.removeItem('trainingStartTime');
     
     // Reset state
     setStatus('idle');
@@ -376,7 +284,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
       <div className="mt-6 space-y-3">
         <Button
           onClick={startTraining}
-          disabled={isTraining || status === 'completed'}
+          disabled={isTraining || status === 'completed' || images.length === 0}
           className="w-full bg-brand-600 hover:bg-brand-700"
           size="lg"
         >
@@ -390,8 +298,10 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
               <CheckCircle className="mr-2 h-4 w-4" />
               Training Completed
             </>
+          ) : images.length === 0 ? (
+            "No Images to Train With"
           ) : (
-            "Start AI Training (20-30 min)"
+            `Start AI Training with ${images.length} Images (20-30 min)`
           )}
         </Button>
 
