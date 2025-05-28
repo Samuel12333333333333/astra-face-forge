@@ -6,19 +6,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Upload, X, Camera, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 interface MultiUploadSectionProps {
-  onPhotosUploaded: (files: File[], modelName: string) => void;
-  onContinue: () => void;
+  onPhotosUploaded?: (files: File[], modelName: string) => void;
+  onContinue?: () => void;
 }
 
 const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({ 
   onPhotosUploaded, 
   onContinue 
 }) => {
+  const navigate = useNavigate();
   const [files, setFiles] = useState<File[]>([]);
   const [modelName, setModelName] = useState("");
   const [previews, setPreviews] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
 
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files ? Array.from(e.target.files) : [];
@@ -31,7 +35,7 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
     const newFiles = [...files, ...selectedFiles];
     setFiles(newFiles);
 
-    // Generate previews safely
+    // Generate previews
     const newPreviews = [...previews];
     selectedFiles.forEach((file, index) => {
       if (file && file instanceof File) {
@@ -42,9 +46,6 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
             newPreviews[previewIndex] = e.target.result as string;
             setPreviews([...newPreviews]);
           }
-        };
-        reader.onerror = () => {
-          console.error('Error reading file:', file.name);
         };
         reader.readAsDataURL(file);
       }
@@ -65,7 +66,7 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
     }
   };
 
-  const handleSubmit = () => {
+  const startTraining = async () => {
     if (files.length < 5) {
       toast.error("Please upload at least 5 photos for best results");
       return;
@@ -74,14 +75,55 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
       toast.error("Please enter a model name");
       return;
     }
+
+    setIsUploading(true);
     
     try {
-      onPhotosUploaded(files, modelName.trim());
-      onContinue();
-    } catch (error) {
-      console.error('Error submitting photos:', error);
-      toast.error("Error uploading photos. Please try again.");
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Please sign in to start training');
+        return;
+      }
+
+      // Convert images to base64
+      const imageData: string[] = [];
+      for (const file of files) {
+        const base64 = await fileToBase64(file);
+        if (base64) imageData.push(base64);
+      }
+
+      const { data, error } = await supabase.functions.invoke('astria', {
+        body: {
+          action: 'create-tune-with-images',
+          images: imageData,
+          name: modelName.trim()
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.id) {
+        toast.success('Training started! Check your dashboard for progress.');
+        navigate('/dashboard/tunes');
+      }
+    } catch (error: any) {
+      toast.error(`Training failed: ${error.message}`);
+    } finally {
+      setIsUploading(false);
     }
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = () => reject(new Error('File reading failed'));
+    });
   };
 
   return (
@@ -90,7 +132,7 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
         <CardHeader>
           <CardTitle>Upload Training Photos</CardTitle>
           <CardDescription>
-            Upload 5-12 high-quality photos of yourself for the best AI model training results
+            Upload 5-12 high-quality photos of yourself for AI model training
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -117,12 +159,7 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
               />
               <Button
                 variant="outline"
-                onClick={() => {
-                  const input = document.getElementById('photo-upload') as HTMLInputElement;
-                  if (input) {
-                    input.click();
-                  }
-                }}
+                onClick={() => document.getElementById('photo-upload')?.click()}
                 disabled={files.length >= 12}
               >
                 <Upload className="mr-2 h-4 w-4" />
@@ -133,17 +170,12 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
             {files.length === 0 ? (
               <div 
                 className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center cursor-pointer hover:border-brand-500 transition-colors"
-                onClick={() => {
-                  const input = document.getElementById('photo-upload') as HTMLInputElement;
-                  if (input) {
-                    input.click();
-                  }
-                }}
+                onClick={() => document.getElementById('photo-upload')?.click()}
               >
                 <Camera className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">Upload your photos</h3>
                 <p className="text-gray-500">
-                  Click here or drag and drop your photos. Use clear, well-lit photos with good facial visibility.
+                  Click here to select photos. Use clear, well-lit photos with good facial visibility.
                 </p>
               </div>
             ) : (
@@ -158,9 +190,6 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
                           src={preview}
                           alt={`Upload ${index + 1}`}
                           className="w-full h-full object-cover"
-                          onError={() => {
-                            console.error('Error loading preview image at index:', index);
-                          }}
                         />
                       </div>
                       <button
@@ -189,13 +218,22 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
           </div>
 
           <Button 
-            onClick={handleSubmit}
-            disabled={files.length < 5 || !modelName.trim()}
+            onClick={startTraining}
+            disabled={files.length < 5 || !modelName.trim() || isUploading}
             className="w-full bg-brand-600 hover:bg-brand-700"
             size="lg"
           >
-            Start AI Training ({files.length} photos)
-            <ArrowRight className="ml-2 h-4 w-4" />
+            {isUploading ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Starting Training...
+              </>
+            ) : (
+              <>
+                Start AI Training ({files.length} photos)
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </>
+            )}
           </Button>
         </CardContent>
       </Card>

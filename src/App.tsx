@@ -7,10 +7,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { UserProvider } from "@/contexts/UserContext";
 import ModernDashboard from "./components/dashboard/ModernDashboard";
 import Auth from "./pages/Auth";
-import Pricing from "./pages/Pricing";
-import About from "./pages/About";
-import FAQ from "./pages/FAQ";
-import Support from "./pages/Support";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
@@ -19,8 +15,8 @@ const queryClient = new QueryClient({
     queries: {
       refetchOnWindowFocus: false,
       retry: 2,
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      gcTime: 1000 * 60 * 10, // 10 minutes
+      staleTime: 1000 * 60 * 5,
+      gcTime: 1000 * 60 * 10,
     },
   },
 });
@@ -35,12 +31,7 @@ const App = () => (
           <Routes>
             <Route path="/auth/*" element={<Auth />} />
             <Route path="/dashboard/*" element={<ModernDashboard />} />
-            <Route path="/pricing" element={<Pricing />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/faq" element={<FAQ />} />
-            <Route path="/support" element={<Support />} />
-            <Route path="/train" element={<Index />} />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/" element={<Index />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
