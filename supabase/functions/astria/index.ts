@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 
@@ -340,14 +339,14 @@ async function checkTuneStatus(requestBody, corsHeaders) {
       );
     }
     
-    // Update status in database if possible
+    // Update status in database if possible - FIXED: use correct field name
     try {
       if (result.id && result.status) {
-        // Find the model with this tune ID
+        // Find the model with this tune ID - use lowercase 'modelid'
         const { data: models, error: findError } = await supabase
           .from('models')
           .select('id')
-          .eq('modelId', tuneId)
+          .eq('modelid', tuneId)
           .limit(1);
         
         if (findError) {
@@ -499,11 +498,11 @@ async function generateHeadshots(requestBody, userId, corsHeaders) {
         );
       }
       
-      // Find the model record for this tune ID
+      // Find the model record for this tune ID - FIXED: use correct field name
       const { data: models, error: findError } = await supabase
         .from('models')
         .select('id')
-        .eq('modelId', tuneId)
+        .eq('modelid', tuneId)
         .limit(1);
       
       if (findError || !models || models.length === 0) {
@@ -513,7 +512,7 @@ async function generateHeadshots(requestBody, userId, corsHeaders) {
         try {
           const modelId = models[0].id;
           const headshotsToInsert = images.map((imageUrl) => ({
-            modelId: modelId,
+            modelid: modelId,
             uri: imageUrl,
           }));
           

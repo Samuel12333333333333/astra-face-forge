@@ -53,7 +53,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
     try {
       setIsLoading(true);
       
-      // First get the model ID from the tune ID - cast to any to avoid deep type issues
+      // First get the model ID from the tune ID - FIXED: use correct field name
       const { data: models, error: modelError } = await supabase
         .from('models')
         .select('id')
@@ -63,13 +63,15 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
       if (modelError) throw modelError;
       
       if (!models || models.length === 0) {
+        console.log("No model found for tune ID:", tuneId);
         setIsLoading(false);
         return;
       }
       
       const modelId = models[0].id;
+      console.log("Found model with ID:", modelId, "for tune ID:", tuneId);
       
-      // Now fetch images for this model - cast to any to avoid deep type issues
+      // Now fetch images for this model - FIXED: use correct field name
       const { data: images, error: imagesError } = await supabase
         .from('images')
         .select('uri')
@@ -79,9 +81,12 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
       if (imagesError) throw imagesError;
       
       if (images && images.length > 0) {
+        console.log(`Found ${images.length} existing headshots`);
         const imageUrls = images.map((img: any) => img.uri);
         setHeadshots(imageUrls);
         setSelectedHeadshot(imageUrls[0]); // Select the first image by default
+      } else {
+        console.log("No existing headshots found");
       }
     } catch (error) {
       console.error("Error fetching headshots:", error);
