@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Loader2, CheckCircle, RotateCcw } from "lucide-react";
@@ -101,10 +100,10 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
       console.log(`Successfully converted ${base64Images.length} images. Creating tune with images...`);
       setProgress(30);
 
-      // Create tune with all images in one request
+      // Create tune with all images in one request - FIXED ACTION NAME
       const { data: tuneData, error: tuneError } = await supabase.functions.invoke('astria', {
         body: {
-          action: 'create-tune-with-images',
+          action: 'create-tune-with-images', // Fixed: was 'create-tune'
           images: base64Images
         }
       });
