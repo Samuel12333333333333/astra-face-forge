@@ -102,6 +102,8 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
       }
 
       const createdTuneId = tuneData.id;
+      console.log("Tune created successfully with ID:", createdTuneId);
+      
       setTuneId(createdTuneId);
       setStatus('uploading-images');
       setProgress(20);
@@ -109,8 +111,6 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
       // Store tune ID for persistence
       localStorage.setItem('currentTuneId', createdTuneId);
       localStorage.setItem('trainingStatus', 'uploading-images');
-
-      console.log("Tune created successfully:", createdTuneId);
 
       // Step 2: Upload images to the tune
       let uploadedCount = 0;
@@ -129,13 +129,14 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
               image: base64Data,
               filename: file.name,
               contentType: file.type,
-              tuneId: createdTuneId // This is now guaranteed to exist
+              tuneId: createdTuneId // Pass the tuneId explicitly
             }
           });
           
           if (uploadError) {
             console.error(`Upload error for image ${i+1}:`, uploadError);
             toast.error(`Error uploading image ${i+1}: ${uploadError.message}`);
+            // Continue with other images instead of failing completely
           } else {
             uploadedCount++;
             console.log(`Successfully uploaded image ${i+1}`);
@@ -143,6 +144,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
         } catch (uploadError: any) {
           console.error(`Upload error for image ${i+1}:`, uploadError);
           toast.error(`Error uploading image ${i+1}: ${uploadError.message}`);
+          // Continue with other images instead of failing completely
         }
 
         // Update progress
@@ -173,7 +175,6 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
       setStatus('error');
       localStorage.setItem('trainingStatus', 'error');
       toast.error(`Training failed: ${error.message}`);
-    } finally {
       setIsTraining(false);
     }
   };
@@ -213,6 +214,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
           setProgress(100);
           setStatus('completed');
           localStorage.setItem('trainingStatus', 'completed');
+          setIsTraining(false);
           
           // Send email notification
           try {
@@ -247,6 +249,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
         console.error("Status check error:", error);
         setError(error.message);
         setStatus('error');
+        setIsTraining(false);
         localStorage.setItem('trainingStatus', 'error');
         throw error;
       }
