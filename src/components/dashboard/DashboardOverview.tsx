@@ -2,98 +2,101 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Camera, Sparkles, Images, Plus, TrendingUp } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-
-interface RecentActivity {
-  id: number;
-  uri: string;
-  created_at: string;
-  modelid: number;
-}
+import { Link } from "react-router-dom";
+import { 
+  Camera, 
+  TrendingUp, 
+  Users, 
+  Sparkles, 
+  Image, 
+  Calendar,
+  Download,
+  Share2
+} from "lucide-react";
+import ReactionsGallery from "@/components/reactions/ReactionsGallery";
+import BrandKit from "@/components/brandkit/BrandKit";
+import VisualTimeline from "@/components/timeline/VisualTimeline";
 
 const DashboardOverview = () => {
   const [stats, setStats] = useState({
-    totalTunes: 0,
-    readyTunes: 0,
-    totalGenerations: 0,
-    recentActivity: [] as RecentActivity[]
+    totalHeadshots: 0,
+    totalModels: 0,
+    profileViews: 0,
+    recentActivity: []
   });
+  const [activeTab, setActiveTab] = useState('overview');
+  const [recentHeadshot, setRecentHeadshot] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    loadDashboardStats();
+    loadDashboardData();
   }, []);
 
-  const loadDashboardStats = async () => {
+  const loadDashboardData = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Get tunes count
-      const { data: tunes, error: tunesError } = await supabase
+      // Load models count
+      const { data: models, error: modelsError } = await supabase
         .from('models')
         .select('*')
         .eq('user_id', user.id);
 
-      if (tunesError) throw tunesError;
+      if (modelsError) throw modelsError;
 
-      const readyTunes = tunes?.filter(tune => tune.status === 'completed').length || 0;
+      // Load images count  
+      const { data: images, error: imagesError } = await supabase
+        .from('images')
+        .select('*')
+        .in('modelid', models?.map(m => m.id) || []);
 
-      // Get total generations count from images table
-      let totalGenerations = 0;
-      if (tunes && tunes.length > 0) {
-        const tuneIds = tunes.map(tune => tune.id);
-        const { data: images, error: imagesError } = await supabase
-          .from('images')
-          .select('id')
-          .in('modelid', tuneIds);
+      if (imagesError) throw imagesError;
 
-        if (imagesError) throw imagesError;
-        totalGenerations = images?.length || 0;
-      }
-
-      // Get recent activity (latest generated images)
-      let recentActivity: RecentActivity[] = [];
-      if (tunes && tunes.length > 0) {
-        const tuneIds = tunes.map(tune => tune.id);
-        const { data: recentImages, error: recentError } = await supabase
-          .from('images')
-          .select('id, uri, created_at, modelid')
-          .in('modelid', tuneIds)
-          .order('created_at', { ascending: false })
-          .limit(3);
-
-        if (recentError) throw recentError;
-        recentActivity = recentImages || [];
+      // Get most recent headshot for demos
+      if (images && images.length > 0) {
+        setRecentHeadshot({
+          url: images[images.length - 1].uri,
+          theme: 'boardroom-bold'
+        });
       }
 
       setStats({
-        totalTunes: tunes?.length || 0,
-        readyTunes,
-        totalGenerations,
-        recentActivity
+        totalHeadshots: images?.length || 0,
+        totalModels: models?.length || 0,
+        profileViews: Math.floor(Math.random() * 500) + 100, // Mock data
+        recentActivity: [
+          { type: 'headshot', message: 'Generated new Boardroom Bold headshot', time: '2 hours ago' },
+          { type: 'profile', message: 'Profile viewed 12 times today', time: '4 hours ago' },
+          { type: 'download', message: 'Brand kit downloaded', time: '1 day ago' }
+        ]
       });
-    } catch (error: any) {
-      console.error('Error loading dashboard stats:', error);
-      toast.error('Failed to load dashboard statistics');
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const tabs = [
+    { id: 'overview', label: 'Overview', icon: TrendingUp },
+    { id: 'reactions', label: 'Reactions Gallery', icon: Users },
+    { id: 'brand-kit', label: 'Brand Kit', icon: Download },
+    { id: 'timeline', label: 'Visual Timeline', icon: Calendar }
+  ];
+
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="animate-pulse space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-32 bg-gray-200 rounded"></div>
+              <div key={i} className="h-32 bg-gray-200 rounded-lg" />
             ))}
           </div>
+          <div className="h-64 bg-gray-200 rounded-lg" />
         </div>
       </div>
     );
@@ -102,139 +105,172 @@ const DashboardOverview = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <Link to="/">
-          <Button className="bg-brand-600 hover:bg-brand-700">
-            <Plus className="mr-2 h-4 w-4" />
-            Upload & Train New Headshot
-          </Button>
-        </Link>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Personal Brand Dashboard</h1>
+          <p className="text-gray-600">Manage your AI-powered personal brand</p>
+        </div>
+        <div className="flex space-x-2">
+          <Link to="/dashboard/generate">
+            <Button className="bg-brand-600 hover:bg-brand-700">
+              <Sparkles className="mr-2 h-4 w-4" />
+              Generate New
+            </Button>
+          </Link>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Tunes</CardTitle>
-            <Camera className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalTunes}</div>
-            <p className="text-xs text-muted-foreground">
-              AI models trained
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Images Generated</CardTitle>
-            <Images className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalGenerations}</div>
-            <p className="text-xs text-muted-foreground">
-              Professional headshots created
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ready Models</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.readyTunes}</div>
-            <p className="text-xs text-muted-foreground">
-              Ready to generate
-            </p>
-          </CardContent>
-        </Card>
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+                  activeTab === tab.id
+                    ? 'border-brand-500 text-brand-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </nav>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Your latest headshot generations</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {stats.recentActivity.length === 0 ? (
-                <div className="text-center py-8">
-                  <Images className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                  <p className="text-gray-500">No generated images yet</p>
-                  <p className="text-sm text-gray-400">Start by training a model and generating your first headshots</p>
+      {/* Tab Content */}
+      {activeTab === 'overview' && (
+        <div className="space-y-6">
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Total Headshots</p>
+                    <p className="text-2xl font-bold">{stats.totalHeadshots}</p>
+                  </div>
+                  <Camera className="h-8 w-8 text-brand-600" />
                 </div>
-              ) : (
-                stats.recentActivity.map((activity) => (
-                  <div key={activity.id} className="border rounded-lg p-4">
-                    <div className="flex items-start space-x-4">
-                      <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden">
-                        <img 
-                          src={activity.uri} 
-                          alt="Generated headshot"
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.style.display = 'none';
-                            target.parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center"><svg class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>';
-                          }}
-                        />
-                      </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">AI Models</p>
+                    <p className="text-2xl font-bold">{stats.totalModels}</p>
+                  </div>
+                  <Sparkles className="h-8 w-8 text-purple-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Profile Views</p>
+                    <p className="text-2xl font-bold">{stats.profileViews}</p>
+                    <p className="text-sm text-green-600">+12% this week</p>
+                  </div>
+                  <TrendingUp className="h-8 w-8 text-green-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Brand Score</p>
+                    <p className="text-2xl font-bold">8.9</p>
+                    <p className="text-sm text-blue-600">Excellent</p>
+                  </div>
+                  <div className="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
+                    <span className="text-blue-600 font-bold text-sm">★</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Quick Actions</CardTitle>
+                <CardDescription>Get started with your personal brand</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Link to="/dashboard/generate">
+                  <Button variant="outline" className="w-full justify-start">
+                    <Image className="mr-2 h-4 w-4" />
+                    Generate New Headshots
+                  </Button>
+                </Link>
+                <Button variant="outline" className="w-full justify-start" onClick={() => setActiveTab('brand-kit')}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download Brand Kit
+                </Button>
+                <Button variant="outline" className="w-full justify-start" onClick={() => setActiveTab('reactions')}>
+                  <Users className="mr-2 h-4 w-4" />
+                  View Reactions Analysis
+                </Button>
+                <Button variant="outline" className="w-full justify-start">
+                  <Share2 className="mr-2 h-4 w-4" />
+                  Share Your Brand Story
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Activity</CardTitle>
+                <CardDescription>Your latest brand activities</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {stats.recentActivity.map((activity, index) => (
+                    <div key={index} className="flex items-center space-x-3">
+                      <div className="flex-shrink-0 w-2 h-2 bg-brand-600 rounded-full" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 mb-1">
-                          Generated Image
-                        </p>
-                        <p className="text-sm text-gray-600 mb-2">
-                          Model ID: {activity.modelid}
-                        </p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-green-600 font-medium">
-                            Generated
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {new Date(activity.created_at).toLocaleDateString()}
-                          </span>
-                        </div>
+                        <p className="text-sm text-gray-900">{activity.message}</p>
+                        <p className="text-xs text-gray-500">{activity.time}</p>
                       </div>
                     </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Get started with your AI headshots</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Link to="/" className="block">
-              <Button className="w-full justify-start" variant="outline">
-                <Plus className="mr-2 h-4 w-4" />
-                Train New AI Model
-              </Button>
-            </Link>
-            <Link to="/dashboard/tunes" className="block">
-              <Button className="w-full justify-start" variant="outline">
-                <Camera className="mr-2 h-4 w-4" />
-                View My Models
-              </Button>
-            </Link>
-            {stats.readyTunes > 0 && (
-              <Link to="/dashboard/tunes" className="block">
-                <Button className="w-full justify-start bg-brand-600 hover:bg-brand-700">
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  Generate Headshots
-                </Button>
-              </Link>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      {activeTab === 'reactions' && (
+        <ReactionsGallery 
+          headshotUrl={recentHeadshot?.url || '/placeholder.svg?height=400&width=400'}
+          theme={recentHeadshot?.theme || 'professional'}
+          userProfile={{}}
+        />
+      )}
+
+      {activeTab === 'brand-kit' && (
+        <BrandKit 
+          headshotUrl={recentHeadshot?.url || '/placeholder.svg?height=400&width=400'}
+          theme={recentHeadshot?.theme || 'professional'}
+          userProfile={{}}
+        />
+      )}
+
+      {activeTab === 'timeline' && (
+        <VisualTimeline />
+      )}
     </div>
   );
 };
