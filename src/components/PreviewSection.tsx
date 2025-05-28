@@ -1,155 +1,69 @@
 
 import React, { useState, useEffect } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Sparkles, Download, Share2, ArrowLeft, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-
-// Import smaller components
-import SelectedHeadshotDisplay from "./headshots/SelectedHeadshotDisplay";
-import HeadshotGallery from "./headshots/HeadshotGallery";
-import HeadshotActionButtons from "./headshots/HeadshotActionButtons";
-import EmptyHeadshotState from "./headshots/EmptyHeadshotState";
-import StyleInfoCard from "./headshots/StyleInfoCard";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 interface PreviewSectionProps {
-  tuneId: string | null;
   selectedStyle: string | null;
+  tuneId: string | null;
   onBack: () => void;
 }
 
-// Simple style mapping to avoid type complexity
-const getStylePrompt = (style: string): string => {
-  switch (style) {
-    case 'professional':
-      return "a professional headshot of sks person with studio lighting, neutral background, business attire";
-    case 'casual':
-      return "a casual portrait of sks person with natural lighting, relaxed expression, modern setting";
-    case 'creative':
-      return "an artistic portrait of sks person with dramatic lighting, creative composition, unique setting";
-    default:
-      return "a professional headshot of sks person with studio lighting, neutral background, business attire";
-  }
-};
-
 const PreviewSection: React.FC<PreviewSectionProps> = ({
-  tuneId,
   selectedStyle,
+  tuneId,
   onBack
 }) => {
-  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
   const [isGenerating, setIsGenerating] = useState(false);
-  const [headshots, setHeadshots] = useState<string[]>([]);
-  const [selectedHeadshot, setSelectedHeadshot] = useState<string | null>(null);
-  const [isDownloading, setIsDownloading] = useState(false);
-  
+  const [generatedImages, setGeneratedImages] = useState<string[]>([]);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
   useEffect(() => {
-    if (tuneId) {
-      fetchExistingHeadshots();
+    if (selectedStyle && tuneId) {
+      generateInitialImages();
     }
-  }, [tuneId]);
-  
-  const fetchExistingHeadshots = async () => {
+  }, [selectedStyle, tuneId]);
+
+  const generateInitialImages = async () => {
+    if (!tuneId || !selectedStyle) return;
+
+    setIsGenerating(true);
     try {
-      setIsLoading(true);
-      
-      // First get the model ID from the tune ID - FIXED: use correct field name
-      const { data: models, error: modelError } = await supabase
-        .from('models')
-        .select('id')
-        .eq('modelid', tuneId)
-        .limit(1) as any;
-      
-      if (modelError) throw modelError;
-      
-      if (!models || models.length === 0) {
-        console.log("No model found for tune ID:", tuneId);
-        setIsLoading(false);
-        return;
-      }
-      
-      const modelId = models[0].id;
-      console.log("Found model with ID:", modelId, "for tune ID:", tuneId);
-      
-      // Now fetch images for this model - FIXED: use correct field name
-      const { data: images, error: imagesError } = await supabase
-        .from('images')
-        .select('uri')
-        .eq('modelid', modelId)
-        .order('created_at', { ascending: false }) as any;
-      
-      if (imagesError) throw imagesError;
-      
-      if (images && images.length > 0) {
-        console.log(`Found ${images.length} existing headshots`);
-        const imageUrls = images.map((img: any) => img.uri);
-        setHeadshots(imageUrls);
-        setSelectedHeadshot(imageUrls[0]); // Select the first image by default
-      } else {
-        console.log("No existing headshots found");
-      }
-    } catch (error) {
-      console.error("Error fetching headshots:", error);
-      toast.error("Failed to load headshots");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  const generateHeadshots = async () => {
-    if (!tuneId || !selectedStyle) {
-      toast.error("Missing required information for generation");
-      return;
-    }
-    
-    try {
-      setIsGenerating(true);
-      
-      // Use simple function to get prompt
-      const prompt = getStylePrompt(selectedStyle);
-      
-      // Use any type for the function call to avoid type depth issues
-      const { data, error } = await (supabase.functions as any).invoke('astria', {
+      const { data, error } = await supabase.functions.invoke('astria', {
         body: {
           action: 'generate-headshots',
           tuneId: tuneId,
-          prompt: prompt,
-          styleType: selectedStyle,
+          prompt: `${selectedStyle} headshot, professional quality`,
           numImages: 4
         }
       });
-      
-      if (error) throw new Error(error.message);
-      
-      if (!data || !data.images || !Array.isArray(data.images)) {
-        throw new Error("No images received from generation");
+
+      if (error) throw error;
+
+      if (data?.images) {
+        setGeneratedImages(data.images);
+        setSelectedImage(data.images[0]);
+        toast.success('Generated preview images!');
       }
-      
-      toast.success("Headshots generated successfully!");
-      
-      // Update the headshots list with new images
-      setHeadshots(data.images);
-      if (data.images.length > 0) {
-        setSelectedHeadshot(data.images[0]);
-      }
-      
-      // Reload from database to ensure we have the latest
-      fetchExistingHeadshots();
     } catch (error: any) {
-      console.error("Generation error:", error);
-      toast.error(`Failed to generate headshots: ${error.message}`);
+      console.error('Generation error:', error);
+      toast.error('Failed to generate preview images');
     } finally {
       setIsGenerating(false);
     }
   };
-  
+
   const handleDownload = async () => {
-    if (!selectedHeadshot) return;
-    
+    if (!selectedImage) return;
+
     try {
-      setIsDownloading(true);
-      
-      const response = await fetch(selectedHeadshot);
+      const response = await fetch(selectedImage);
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       
@@ -160,79 +74,156 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
       link.click();
       document.body.removeChild(link);
       
-      toast.success("Headshot downloaded successfully!");
+      toast.success("Image downloaded successfully!");
     } catch (error) {
-      const err = error as Error;
-      console.error("Download error:", err);
-      toast.error("Failed to download headshot");
-    } finally {
-      setIsDownloading(false);
+      toast.error("Failed to download image");
     }
   };
-  
+
   const handleShare = async () => {
-    if (!selectedHeadshot) return;
-    
+    if (!selectedImage) return;
+
     try {
       if (navigator.share) {
         await navigator.share({
           title: 'My AI Headshot',
           text: 'Check out my professional AI headshot!',
-          url: selectedHeadshot
+          url: selectedImage
         });
-        toast.success("Shared successfully!");
       } else {
-        await navigator.clipboard.writeText(selectedHeadshot);
+        await navigator.clipboard.writeText(selectedImage);
         toast.success("Image URL copied to clipboard!");
       }
     } catch (error) {
-      const err = error as Error;
-      console.error("Share error:", err);
-      toast.error("Failed to share headshot");
+      toast.error("Failed to share image");
     }
   };
 
+  const goToDashboard = () => {
+    navigate('/dashboard');
+  };
+
   return (
-    <div className="w-full max-w-3xl mx-auto">
-      <div className="flex flex-col md:flex-row gap-6">
-        <Card className="flex-1">
-          <CardContent className="pt-6 flex flex-col items-center">
-            <h3 className="text-xl font-medium mb-6">Your AI Headshots</h3>
-            
-            {isLoading ? (
-              <div className="flex items-center justify-center h-64 w-full">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    <div className="space-y-6">
+      <div className="flex items-center space-x-4">
+        <Button variant="outline" size="sm" onClick={onBack}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back
+        </Button>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Preview Your Headshots</h1>
+          <p className="text-gray-600">
+            Style: <Badge variant="outline" className="ml-1">{selectedStyle}</Badge>
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Selected Image</CardTitle>
+            <CardDescription>
+              Click on thumbnails below to change selection
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {selectedImage ? (
+              <div className="aspect-square rounded-lg overflow-hidden border bg-gray-100">
+                <img 
+                  src={selectedImage} 
+                  alt="Selected headshot"
+                  className="w-full h-full object-cover"
+                />
               </div>
-            ) : headshots.length === 0 ? (
-              <EmptyHeadshotState 
-                onGenerate={generateHeadshots} 
-                isGenerating={isGenerating} 
-                hasTuneId={!!tuneId}
-              />
             ) : (
-              <>
-                <SelectedHeadshotDisplay imageUrl={selectedHeadshot} />
-                <HeadshotGallery 
-                  headshots={headshots} 
-                  selectedHeadshot={selectedHeadshot} 
-                  onSelectHeadshot={setSelectedHeadshot} 
-                />
-                <HeadshotActionButtons 
-                  onGenerate={generateHeadshots} 
-                  onDownload={handleDownload} 
-                  onShare={handleShare}
-                  isGenerating={isGenerating}
-                  isDownloading={isDownloading}
-                  hasSelectedHeadshot={!!selectedHeadshot}
-                />
-              </>
+              <div className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center">
+                {isGenerating ? (
+                  <div className="text-center">
+                    <RefreshCw className="h-8 w-8 animate-spin text-brand-600 mx-auto mb-2" />
+                    <p className="text-gray-500">Generating your headshots...</p>
+                  </div>
+                ) : (
+                  <p className="text-gray-500">No image selected</p>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Generated Variants</CardTitle>
+            <CardDescription>
+              Choose your favorite from the generated options
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {generatedImages.length > 0 ? (
+              <div className="grid grid-cols-2 gap-4">
+                {generatedImages.map((image, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedImage(image)}
+                    className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                      selectedImage === image 
+                        ? 'border-brand-600 ring-2 ring-brand-200' 
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <img 
+                      src={image} 
+                      alt={`Variant ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-500">
+                  {isGenerating ? 'Generating images...' : 'No images generated yet'}
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-4 justify-center">
+        <Button
+          onClick={generateInitialImages}
+          disabled={isGenerating || !tuneId}
+          variant="outline"
+        >
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Generate More
+        </Button>
         
-        <div className="w-full md:w-1/3">
-          <StyleInfoCard selectedStyle={selectedStyle} onBack={onBack} />
-        </div>
+        <Button
+          onClick={handleDownload}
+          disabled={!selectedImage}
+          variant="outline"
+        >
+          <Download className="mr-2 h-4 w-4" />
+          Download
+        </Button>
+        
+        <Button
+          onClick={handleShare}
+          disabled={!selectedImage}
+          variant="outline"
+        >
+          <Share2 className="mr-2 h-4 w-4" />
+          Share
+        </Button>
+        
+        <Button
+          onClick={goToDashboard}
+          className="bg-brand-600 hover:bg-brand-700"
+        >
+          <Sparkles className="mr-2 h-4 w-4" />
+          Go to Dashboard
+        </Button>
       </div>
     </div>
   );

@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Loader2, CheckCircle, RotateCcw } from "lucide-react";
-import { toast } from "sonner";
+import { Progress } from "@/components/ui/progress";
+import { Loader2, CheckCircle, Clock, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import TrainingStatusCard from "./TrainingStatusCard";
+import { toast } from "sonner";
 
 interface TrainingSectionProps {
   images: File[];
@@ -18,403 +19,206 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
   onContinue
 }) => {
   const [isTraining, setIsTraining] = useState(false);
+  const [trainingStatus, setTrainingStatus] = useState<'idle' | 'uploading' | 'training' | 'completed' | 'failed'>('idle');
   const [progress, setProgress] = useState(0);
-  const [status, setStatus] = useState<'idle' | 'creating-tune' | 'training' | 'completed' | 'error'>('idle');
   const [tuneId, setTuneId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [startTime, setStartTime] = useState<Date | null>(null);
-  const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<number | null>(null);
-
-  // Debug: Log images on mount
-  useEffect(() => {
-    console.log("TrainingSection mounted with images:", images.length, images.map(f => f.name));
-  }, [images]);
-
-  // Set up real-time listener for training updates
-  useEffect(() => {
-    const channel = supabase
-      .channel('training-updates')
-      .on('broadcast', { event: 'training-completed' }, (payload) => {
-        console.log('Real-time training completion received:', payload);
-        
-        // Check if this notification is for the current user
-        const checkUser = async () => {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user && payload.payload?.userId === user.id && payload.payload?.tuneId === tuneId) {
-            console.log('Training completed via real-time notification!');
-            setStatus('completed');
-            setProgress(100);
-            setIsTraining(false);
-            
-            // Clear stored session
-            localStorage.removeItem('trainingStartTime');
-            localStorage.setItem('trainingStatus', 'completed');
-            
-            onTrainingComplete(payload.payload.tuneId);
-            toast.success("🎉 Training completed! Your AI model is ready to create professional headshots.");
-          }
-        };
-        checkUser();
-      })
-      .on('broadcast', { event: 'tune-created' }, (payload) => {
-        console.log('Real-time tune creation received:', payload);
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [tuneId, onTrainingComplete]);
-
-  // Update estimated time remaining
-  useEffect(() => {
-    if (status === 'training' && startTime) {
-      const interval = setInterval(() => {
-        const elapsed = Date.now() - startTime.getTime();
-        const estimatedTotal = 25 * 60 * 1000; // 25 minutes average
-        const remaining = Math.max(0, estimatedTotal - elapsed);
-        setEstimatedTimeRemaining(remaining);
-      }, 10000); // Update every 10 seconds
-
-      return () => clearInterval(interval);
-    }
-  }, [status, startTime]);
+  const [statusMessage, setStatusMessage] = useState('');
 
   const startTraining = async () => {
-    console.log("Starting training with", images.length, "images");
-    
-    if (images.length === 0) {
-      const errorMsg = "No images provided for training";
-      console.error(errorMsg);
-      toast.error(errorMsg);
-      setError(errorMsg);
-      return;
-    }
-
-    setIsTraining(true);
-    setProgress(0);
-    setError(null);
-    setStatus('creating-tune');
-    const trainingStartTime = new Date();
-    setStartTime(trainingStartTime);
-
-    // Store session info
-    localStorage.setItem('trainingStartTime', trainingStartTime.toISOString());
-    localStorage.setItem('trainingStatus', 'creating-tune');
-
     try {
-      // Show upfront expectations
-      toast.info("Starting AI model training - this will take 20-30 minutes for the best quality results");
-
-      console.log("Converting images to base64...");
+      setIsTraining(true);
+      setTrainingStatus('uploading');
+      setStatusMessage('Uploading images...');
       setProgress(10);
 
-      // Convert all images to base64
-      const base64Images: string[] = [];
-      for (let i = 0; i < images.length; i++) {
-        const file = images[i];
-        console.log(`Converting image ${i+1}/${images.length}: ${file.name} (${file.size} bytes)`);
-        
-        try {
-          const base64Data = await fileToBase64(file);
-          base64Images.push(base64Data);
-          console.log(`Converted ${file.name} to base64`);
-        } catch (conversionError: any) {
-          console.error(`Error converting image ${i+1}:`, conversionError);
-          toast.warning(`Could not process image ${i+1}: ${file.name}`);
-          // Continue with other images
-        }
-
-        // Update progress for image conversion
-        const conversionProgress = 10 + ((i + 1) / images.length) * 20; // 10-30%
-        setProgress(conversionProgress);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
       }
 
-      if (base64Images.length === 0) {
-        throw new Error("Failed to convert any images to base64");
-      }
+      // Convert images to base64
+      const imageData = await Promise.all(
+        images.map(async (file) => {
+          const base64 = await fileToBase64(file);
+          return {
+            name: file.name,
+            data: base64
+          };
+        })
+      );
 
-      console.log(`Successfully converted ${base64Images.length} images. Creating tune with images...`);
       setProgress(30);
+      setStatusMessage('Starting AI training...');
 
-      // Create tune with all images in one request
-      const { data: tuneData, error: tuneError } = await supabase.functions.invoke('astria', {
+      // Call the Astria edge function to start training
+      const { data, error } = await supabase.functions.invoke('astria', {
         body: {
-          action: 'create-tune-with-images',
-          images: base64Images
+          action: 'create-tune',
+          images: imageData,
+          name: `Model ${Date.now()}`
         }
       });
 
-      if (tuneError) {
-        console.error("Tune creation error:", tuneError);
-        throw new Error(`Failed to create tune: ${tuneError.message}`);
+      if (error) throw error;
+
+      if (data.tuneId) {
+        setTuneId(data.tuneId);
+        setTrainingStatus('training');
+        setStatusMessage('Training your AI model...');
+        setProgress(50);
+        
+        // Start polling for status
+        pollTrainingStatus(data.tuneId);
       }
-      
-      if (!tuneData || !tuneData.id) {
-        console.error("No tune data received:", tuneData);
-        throw new Error("No tune ID received from creation");
-      }
-
-      const createdTuneId = tuneData.id;
-      console.log("Tune created successfully with ID:", createdTuneId);
-      
-      setTuneId(createdTuneId);
-      setStatus('training');
-      setProgress(50);
-
-      // Store tune ID for persistence
-      localStorage.setItem('currentTuneId', createdTuneId);
-      localStorage.setItem('trainingStatus', 'training');
-
-      // Show training started message
-      toast.success(`Training started with ${base64Images.length} images. We'll notify you when it's ready!`);
-
-      // Start periodic status checking (as backup to real-time notifications)
-      await pollTrainingStatus(createdTuneId);
-
     } catch (error: any) {
-      console.error("Training error:", error);
-      setError(error.message);
-      setStatus('error');
-      localStorage.setItem('trainingStatus', 'error');
+      console.error('Training error:', error);
+      setTrainingStatus('failed');
+      setStatusMessage('Training failed');
       toast.error(`Training failed: ${error.message}`);
       setIsTraining(false);
     }
   };
 
   const pollTrainingStatus = async (tuneId: string) => {
-    // Reduced polling frequency since we have real-time notifications
-    const maxAttempts = 40; // 20 minutes max (30 second intervals)
-    let attempts = 0;
-
-    const checkStatus = async (): Promise<void> => {
+    const pollInterval = setInterval(async () => {
       try {
-        console.log(`Checking status for tune ID: ${tuneId} (attempt ${attempts + 1})`);
-        
         const { data, error } = await supabase.functions.invoke('astria', {
           body: {
-            action: 'check-status',
+            action: 'get-tune-status',
             tuneId: tuneId
           }
         });
 
-        if (error) {
-          console.error("Status check error:", error);
-          throw new Error(`Status check failed: ${error.message}`);
-        }
+        if (error) throw error;
 
-        const currentStatus = data?.status || 'unknown';
-        const trainedAt = data?.trained_at;
-        
-        console.log(`Training status: ${currentStatus}, trained_at: ${trainedAt} (attempt ${attempts + 1})`);
-
-        // Check if training is completed - look for trained_at field
-        if (trainedAt || currentStatus === 'finished' || currentStatus === 'completed') {
-          console.log("Training completed! trained_at:", trainedAt);
+        if (data.status === 'completed') {
+          clearInterval(pollInterval);
+          setTrainingStatus('completed');
           setProgress(100);
-          setStatus('completed');
-          localStorage.setItem('trainingStatus', 'completed');
+          setStatusMessage('Training completed successfully!');
           setIsTraining(false);
-          
-          // Send email notification
-          try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user?.email) {
-              await supabase.functions.invoke('send-training-notification', {
-                body: {
-                  email: user.email,
-                  tuneId: tuneId,
-                  userName: user.user_metadata?.first_name
-                }
-              });
-            }
-          } catch (emailError) {
-            console.warn("Could not send email notification:", emailError);
-          }
-
           onTrainingComplete(tuneId);
-          toast.success("🎉 Training completed! Your AI model is ready to create professional headshots.");
-          return;
-        }
-
-        // Check for failure states
-        if (currentStatus === 'failed' || currentStatus === 'error') {
-          throw new Error("Training failed on Astria's servers. Please try again with different photos.");
-        }
-
-        // Still training - continue polling (less frequently due to real-time notifications)
-        if (currentStatus === 'training' || currentStatus === 'queued' || currentStatus === 'processing' || !trainedAt) {
-          const progressValue = 50 + (attempts / maxAttempts) * 40; // 50-90%
-          setProgress(Math.min(progressValue, 90));
-          
-          attempts++;
-          if (attempts < maxAttempts) {
-            // Increased interval since we have real-time notifications as primary method
-            setTimeout(checkStatus, 60000); // Check every 60 seconds instead of 30
-          } else {
-            console.log("Polling timeout reached, relying on real-time notifications");
-            // Don't throw error, just stop polling and rely on real-time notifications
-          }
+          toast.success('🎉 Your AI model is ready!');
+        } else if (data.status === 'failed') {
+          clearInterval(pollInterval);
+          setTrainingStatus('failed');
+          setStatusMessage('Training failed');
+          setIsTraining(false);
+          toast.error('Training failed. Please try again.');
         } else {
-          // Unknown status, continue polling
-          attempts++;
-          if (attempts < maxAttempts) {
-            setTimeout(checkStatus, 60000);
-          }
+          // Still training
+          setProgress(Math.min(90, progress + 5));
         }
-      } catch (error: any) {
-        console.error("Status check error:", error);
-        setError(error.message);
-        setStatus('error');
-        setIsTraining(false);
-        localStorage.setItem('trainingStatus', 'error');
-        throw error;
+      } catch (error) {
+        console.error('Status check error:', error);
       }
-    };
+    }, 10000); // Check every 10 seconds
 
-    await checkStatus();
+    // Cleanup after 30 minutes
+    setTimeout(() => {
+      clearInterval(pollInterval);
+    }, 30 * 60 * 1000);
   };
 
-  // Helper function to convert File to base64
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = error => reject(error);
+      reader.onload = () => {
+        const result = reader.result as string;
+        resolve(result.split(',')[1]); // Remove data:image/...;base64, prefix
+      };
+      reader.onerror = reject;
     });
   };
 
-  const handleRetry = () => {
-    // Clear stored session
-    localStorage.removeItem('currentTuneId');
-    localStorage.removeItem('trainingStatus');
-    localStorage.removeItem('trainingStartTime');
-    
-    // Reset state
-    setStatus('idle');
-    setProgress(0);
-    setError(null);
-    setTuneId(null);
-    setIsTraining(false);
-    setStartTime(null);
-    setEstimatedTimeRemaining(null);
-  };
-
-  // Add a manual status check function for debugging
-  const checkCurrentStatus = async () => {
-    if (!tuneId) {
-      toast.error("No tune ID available to check");
-      return;
-    }
-
-    try {
-      console.log(`Manually checking status for tune ID: ${tuneId}`);
-      
-      const { data, error } = await supabase.functions.invoke('astria', {
-        body: {
-          action: 'check-status',
-          tuneId: tuneId
-        }
-      });
-
-      if (error) {
-        console.error("Manual status check error:", error);
-        toast.error(`Status check failed: ${error.message}`);
-        return;
-      }
-
-      console.log("Manual status check result:", data);
-      toast.info(`Current status: ${data?.status}, trained_at: ${data?.trained_at ? 'Yes' : 'No'}`);
-      
-      // If completed, update state
-      if (data?.trained_at || data?.status === 'finished' || data?.status === 'completed') {
-        setStatus('completed');
-        setProgress(100);
-        setIsTraining(false);
-        onTrainingComplete(tuneId);
-        toast.success("Training is actually completed! You can continue.");
-      }
-    } catch (error: any) {
-      console.error("Manual check error:", error);
-      toast.error(`Manual check failed: ${error.message}`);
+  const getStatusIcon = () => {
+    switch (trainingStatus) {
+      case 'uploading':
+      case 'training':
+        return <Loader2 className="h-6 w-6 animate-spin text-blue-500" />;
+      case 'completed':
+        return <CheckCircle className="h-6 w-6 text-green-500" />;
+      case 'failed':
+        return <AlertCircle className="h-6 w-6 text-red-500" />;
+      default:
+        return <Clock className="h-6 w-6 text-gray-400" />;
     }
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
-      <TrainingStatusCard 
-        status={status}
-        progress={progress}
-        error={error}
-        estimatedTimeRemaining={estimatedTimeRemaining}
-      />
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>AI Model Training</CardTitle>
+          <CardDescription>
+            We'll train a personalized AI model using your uploaded images
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="text-center">
+            <div className="flex justify-center mb-4">
+              {getStatusIcon()}
+            </div>
+            <h3 className="text-lg font-medium mb-2">
+              {trainingStatus === 'idle' && 'Ready to Start Training'}
+              {trainingStatus === 'uploading' && 'Uploading Images'}
+              {trainingStatus === 'training' && 'Training AI Model'}
+              {trainingStatus === 'completed' && 'Training Complete!'}
+              {trainingStatus === 'failed' && 'Training Failed'}
+            </h3>
+            <p className="text-gray-600 mb-4">{statusMessage}</p>
+            
+            {(trainingStatus === 'uploading' || trainingStatus === 'training') && (
+              <div className="space-y-2">
+                <Progress value={progress} className="w-full" />
+                <p className="text-sm text-gray-500">{progress}% complete</p>
+              </div>
+            )}
+          </div>
 
-      <div className="mt-6 space-y-3">
-        <Button
-          onClick={startTraining}
-          disabled={isTraining || status === 'completed' || images.length === 0}
-          className="w-full bg-brand-600 hover:bg-brand-700"
-          size="lg"
-        >
-          {isTraining ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Training in Progress...
-            </>
-          ) : status === 'completed' ? (
-            <>
-              <CheckCircle className="mr-2 h-4 w-4" />
-              Training Completed
-            </>
-          ) : images.length === 0 ? (
-            "No Images to Train With"
-          ) : (
-            `Start AI Training with ${images.length} Images (20-30 min)`
-          )}
-        </Button>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h4 className="font-medium text-blue-900 mb-2">Training Details:</h4>
+            <ul className="text-sm text-blue-700 space-y-1">
+              <li>• Images to process: {images.length}</li>
+              <li>• Estimated time: 20-30 minutes</li>
+              <li>• You'll receive an email notification when ready</li>
+              <li>• You can safely leave this page during training</li>
+            </ul>
+          </div>
 
-        {tuneId && status === 'training' && (
-          <Button
-            onClick={checkCurrentStatus}
-            variant="outline"
-            className="w-full"
-          >
-            Check Status Now (Debug)
-          </Button>
-        )}
-
-        {status === 'error' && (
-          <Button
-            onClick={handleRetry}
-            variant="outline"
-            className="w-full"
-          >
-            <RotateCcw className="mr-2 h-4 w-4" />
-            Try Again
-          </Button>
-        )}
-
-        <Button
-          onClick={onContinue}
-          disabled={status !== 'completed'}
-          variant={status === 'completed' ? "default" : "outline"}
-          className="w-full"
-          size="lg"
-        >
-          Continue to Style Selection <ArrowRight className="ml-2 h-4 w-4" />
-        </Button>
-      </div>
-
-      {status === 'training' && (
-        <div className="mt-6 text-center text-sm text-muted-foreground bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="font-medium text-blue-900 mb-1">💡 Real-time Updates</p>
-          <p className="text-blue-700">
-            You'll receive instant notifications when your model is ready! No need to keep this page open - 
-            we'll notify you immediately when training completes.
-          </p>
-        </div>
-      )}
+          <div className="flex justify-between">
+            {trainingStatus === 'idle' && (
+              <Button 
+                onClick={startTraining}
+                disabled={images.length < 5}
+                className="w-full bg-brand-600 hover:bg-brand-700"
+              >
+                Start AI Training
+              </Button>
+            )}
+            
+            {trainingStatus === 'completed' && (
+              <Button 
+                onClick={onContinue}
+                className="w-full bg-brand-600 hover:bg-brand-700"
+              >
+                Continue to Style Selection
+              </Button>
+            )}
+            
+            {trainingStatus === 'failed' && (
+              <Button 
+                onClick={startTraining}
+                variant="outline"
+                className="w-full"
+              >
+                Retry Training
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

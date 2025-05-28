@@ -1,41 +1,9 @@
 
 import React, { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, ArrowLeft, Briefcase, Camera, Palette, SparkleIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
-
-interface StyleOption {
-  id: string;
-  name: string;
-  description: string;
-  icon: React.ReactNode;
-  examples: string[];
-}
-
-const styleOptions: StyleOption[] = [
-  {
-    id: "professional",
-    name: "Professional",
-    description: "Business attire with formal backgrounds - perfect for LinkedIn and resumes",
-    icon: <Briefcase className="h-5 w-5" />,
-    examples: []
-  },
-  {
-    id: "casual",
-    name: "Casual",
-    description: "Relaxed style for everyday contexts - ideal for social media profiles",
-    icon: <Camera className="h-5 w-5" />,
-    examples: []
-  },
-  {
-    id: "creative",
-    name: "Creative",
-    description: "Artistic style for creative professionals - great for portfolios and creative platforms",
-    icon: <Palette className="h-5 w-5" />,
-    examples: []
-  },
-];
+import { Badge } from "@/components/ui/badge";
+import { Check, ArrowLeft } from "lucide-react";
 
 interface StyleSelectorProps {
   onStyleSelected: (styleId: string) => void;
@@ -43,7 +11,39 @@ interface StyleSelectorProps {
   onContinue: () => void;
 }
 
-const StyleSelector: React.FC<StyleSelectorProps> = ({ onStyleSelected, onBack, onContinue }) => {
+const styles = [
+  {
+    id: 'professional',
+    name: 'Professional',
+    description: 'Clean, corporate look perfect for LinkedIn and resumes',
+    features: ['Business attire', 'Neutral background', 'Professional lighting'],
+    popular: true
+  },
+  {
+    id: 'casual',
+    name: 'Casual',
+    description: 'Relaxed and approachable for social media profiles',
+    features: ['Casual clothing', 'Natural setting', 'Soft lighting']
+  },
+  {
+    id: 'creative',
+    name: 'Creative',
+    description: 'Artistic and unique for creative portfolios',
+    features: ['Artistic styling', 'Creative backgrounds', 'Dramatic lighting']
+  },
+  {
+    id: 'corporate',
+    name: 'Corporate',
+    description: 'Executive-level headshots for leadership profiles',
+    features: ['Formal attire', 'Executive styling', 'Premium backgrounds']
+  }
+];
+
+const StyleSelector: React.FC<StyleSelectorProps> = ({
+  onStyleSelected,
+  onBack,
+  onContinue
+}) => {
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
 
   const handleStyleSelect = (styleId: string) => {
@@ -51,69 +51,78 @@ const StyleSelector: React.FC<StyleSelectorProps> = ({ onStyleSelected, onBack, 
     onStyleSelected(styleId);
   };
 
+  const handleContinue = () => {
+    if (!selectedStyle) return;
+    onContinue();
+  };
+
   return (
-    <div className="w-full max-w-3xl mx-auto">
-      <div className="mb-8 text-center">
-        <h2 className="text-2xl font-bold mb-2">Choose Your Headshot Style</h2>
-        <p className="text-muted-foreground">Select a style that best represents your professional image</p>
+    <div className="space-y-6">
+      <div className="flex items-center space-x-4">
+        <Button variant="outline" size="sm" onClick={onBack}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back
+        </Button>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Choose Your Style</h1>
+          <p className="text-gray-600">Select the style that best fits your needs</p>
+        </div>
       </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        {styleOptions.map((style) => (
-          <Card 
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {styles.map((style) => (
+          <Card
             key={style.id}
-            className={cn(
-              "border-2 cursor-pointer transition-all hover:border-brand-400 hover:shadow-md",
-              selectedStyle === style.id 
-                ? "border-brand-500 ring-2 ring-brand-500/20 shadow-md" 
-                : "border-border"
-            )}
+            className={`cursor-pointer transition-all hover:shadow-lg ${
+              selectedStyle === style.id
+                ? 'ring-2 ring-brand-600 border-brand-600'
+                : 'border-gray-200'
+            }`}
             onClick={() => handleStyleSelect(style.id)}
           >
-            <CardContent className="p-6 flex flex-col items-center text-center">
-              <div className={cn(
-                "w-12 h-12 rounded-full flex items-center justify-center mb-4",
-                selectedStyle === style.id ? "bg-brand-100 text-brand-600" : "bg-muted text-muted-foreground"
-              )}>
-                {style.icon}
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center space-x-2">
+                  <span>{style.name}</span>
+                  {style.popular && (
+                    <Badge variant="secondary" className="text-xs">
+                      Popular
+                    </Badge>
+                  )}
+                </CardTitle>
+                {selectedStyle === style.id && (
+                  <Check className="h-5 w-5 text-brand-600" />
+                )}
               </div>
-              <h4 className="font-medium mb-2">{style.name}</h4>
-              <p className="text-sm text-muted-foreground">{style.description}</p>
-              
-              {selectedStyle === style.id && (
-                <div className="absolute top-2 right-2">
-                  <SparkleIcon className="h-5 w-5 text-brand-500 animate-pulse" />
-                </div>
-              )}
+              <CardDescription>{style.description}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="aspect-video bg-gray-100 rounded-lg mb-4 flex items-center justify-center">
+                <span className="text-gray-500">Style Preview</span>
+              </div>
+              <ul className="space-y-1">
+                {style.features.map((feature, index) => (
+                  <li key={index} className="text-sm text-gray-600 flex items-center">
+                    <Check className="h-3 w-3 text-green-500 mr-2" />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
             </CardContent>
           </Card>
         ))}
       </div>
-      
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={onBack} className="flex items-center">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Training
-        </Button>
-        <Button 
-          disabled={!selectedStyle} 
-          onClick={onContinue}
-          className={cn(
-            "transition-all",
-            selectedStyle ? "bg-brand-600 hover:bg-brand-700" : ""
-          )}
+
+      <div className="flex justify-center">
+        <Button
+          onClick={handleContinue}
+          disabled={!selectedStyle}
+          size="lg"
+          className="bg-brand-600 hover:bg-brand-700"
         >
-          Generate Headshots <ArrowRight className="ml-2 h-4 w-4" />
+          Continue to Preview
         </Button>
       </div>
-      
-      {selectedStyle && (
-        <div className="mt-6 p-4 bg-muted/50 rounded-lg">
-          <p className="text-sm text-muted-foreground">
-            <strong>Selected Style:</strong> {styleOptions.find(s => s.id === selectedStyle)?.name}. 
-            Click "Generate Headshots" to create professional images with this style.
-          </p>
-        </div>
-      )}
     </div>
   );
 };

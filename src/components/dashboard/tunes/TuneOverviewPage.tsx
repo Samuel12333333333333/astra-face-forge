@@ -18,7 +18,7 @@ interface TuneDetails {
 }
 
 const TuneOverviewPage = () => {
-  const { tuneId } = useParams();
+  const { tuneId } = useParams(); // This is actually the modelid from the URL
   const [tune, setTune] = useState<TuneDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -31,18 +31,11 @@ const TuneOverviewPage = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Convert tuneId from string to number
-      const tuneIdNumber = tuneId ? parseInt(tuneId, 10) : null;
-      if (!tuneIdNumber || isNaN(tuneIdNumber)) {
-        toast.error('Invalid model ID');
-        setIsLoading(false);
-        return;
-      }
-
+      // Query by modelid since that's what we get from the URL parameter
       const { data, error } = await supabase
         .from('models')
         .select('*')
-        .eq('id', tuneIdNumber)
+        .eq('modelid', tuneId) // Use modelid instead of id
         .eq('user_id', user.id)
         .single();
 
