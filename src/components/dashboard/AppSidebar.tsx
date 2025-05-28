@@ -92,10 +92,10 @@ const settingsNavigation = [
 
 const quickActions = [
   {
-    title: "AI Boost",
-    url: "/dashboard/boost",
+    title: "Train New Model",
+    url: "/train",
     icon: Zap,
-    premium: true,
+    premium: false,
   },
   {
     title: "Pro Features",

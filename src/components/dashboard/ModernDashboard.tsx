@@ -21,16 +21,17 @@ const ModernDashboard = () => {
         <AppSidebar />
         <DashboardMain>
           <Routes>
-            <Route path="/" element={<Navigate to="/dashboard/overview" replace />} />
-            <Route path="/overview" element={<DashboardOverview />} />
-            <Route path="/tunes" element={<TunesPage />} />
-            <Route path="/tunes/:tuneId" element={<TuneDetailPage />} />
-            <Route path="/tunes/:tuneId/overview" element={<TuneOverviewPage />} />
-            <Route path="/tunes/:tuneId/generate" element={<GeneratePage />} />
-            <Route path="/tunes/:tuneId/gallery" element={<GalleryPage />} />
-            <Route path="/settings/account" element={<AccountSettings />} />
-            <Route path="/settings/billing" element={<BillingSettings />} />
-            <Route path="/settings/notifications" element={<NotificationSettings />} />
+            <Route path="/" element={<Navigate to="overview" replace />} />
+            <Route path="overview" element={<DashboardOverview />} />
+            <Route path="tunes" element={<TunesPage />} />
+            <Route path="tunes/:tuneId" element={<TuneDetailPage />} />
+            <Route path="tunes/:tuneId/overview" element={<TuneOverviewPage />} />
+            <Route path="tunes/:tuneId/generate" element={<GeneratePage />} />
+            <Route path="tunes/:tuneId/gallery" element={<GalleryPage />} />
+            <Route path="gallery" element={<GalleryPage />} />
+            <Route path="settings/account" element={<AccountSettings />} />
+            <Route path="settings/billing" element={<BillingSettings />} />
+            <Route path="settings/notifications" element={<NotificationSettings />} />
           </Routes>
         </DashboardMain>
       </div>
