@@ -8,6 +8,7 @@ import { Upload, X, Camera, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useUser } from "@/contexts/UserContext";
 
 interface MultiUploadSectionProps {
   onPhotosUploaded?: (files: File[], modelName: string) => void;
@@ -19,6 +20,7 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
   onContinue 
 }) => {
   const navigate = useNavigate();
+  const { user, loading } = useUser();
   const [files, setFiles] = useState<File[]>([]);
   const [modelName, setModelName] = useState("");
   const [previews, setPreviews] = useState<string[]>([]);
@@ -27,7 +29,6 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files ? Array.from(e.target.files) : [];
     
-    // STRICT ENFORCEMENT: Maximum 20 images
     if (files.length + selectedFiles.length > 20) {
       toast.error("Maximum 20 training images allowed for optimal model performance");
       return;
@@ -36,7 +37,6 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
     const newFiles = [...files, ...selectedFiles];
     setFiles(newFiles);
 
-    // Generate previews
     const newPreviews = [...previews];
     selectedFiles.forEach((file, index) => {
       if (file && file instanceof File) {
@@ -68,18 +68,33 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
   };
 
   const startTraining = async () => {
-    // STRICT ENFORCEMENT: 5-20 images required
+    console.log("Training button clicked", {
+      filesCount: files.length,
+      modelName: modelName.trim(),
+      user: user?.id,
+      isUploading
+    });
+
+    // Check authentication first
+    if (!user) {
+      toast.error('Please sign in to start training');
+      navigate('/auth/login');
+      return;
+    }
+
+    // Validate image count
     if (files.length < 5) {
-      toast.error("You must upload between 5 and 20 training images. Currently have " + files.length);
+      toast.error(`You must upload at least 5 training images. Currently have ${files.length}`);
       return;
     }
     if (files.length > 20) {
-      toast.error("Maximum 20 training images allowed. Please remove " + (files.length - 20) + " images.");
+      toast.error(`Maximum 20 training images allowed. Please remove ${files.length - 20} images.`);
       return;
     }
     
-    // STRICT ENFORCEMENT: Model name required
-    if (!modelName.trim() || modelName.trim().length < 3) {
+    // Validate model name
+    const trimmedName = modelName.trim();
+    if (!trimmedName || trimmedName.length < 3) {
       toast.error("Please enter a model name (minimum 3 characters)");
       return;
     }
@@ -87,15 +102,9 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
     setIsUploading(true);
     
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error('Please sign in to start training');
-        return;
-      }
-
       console.log("Starting training with", {
         imageCount: files.length,
-        modelName: modelName.trim(),
+        modelName: trimmedName,
         userId: user.id
       });
 
@@ -106,7 +115,6 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
         if (base64) imageData.push(base64);
       }
 
-      // STRICT ENFORCEMENT: Verify we have the right amount of processed images
       if (imageData.length < 5 || imageData.length > 20) {
         throw new Error(`Image processing failed. Expected 5-20 images, got ${imageData.length}`);
       }
@@ -115,11 +123,16 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
         body: {
           action: 'create-tune-with-images',
           images: imageData,
-          name: modelName.trim()
+          name: trimmedName
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Astria function error:', error);
+        throw error;
+      }
+
+      console.log('Training started successfully:', data);
 
       if (data?.id) {
         toast.success('Training started! Model will be ready in 15-25 minutes.');
@@ -129,7 +142,7 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
       }
     } catch (error: any) {
       console.error('Training error:', error);
-      toast.error(`Training failed: ${error.message}`);
+      toast.error(`Training failed: ${error.message || 'Unknown error'}`);
     } finally {
       setIsUploading(false);
     }
@@ -147,6 +160,51 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
       reader.onerror = () => reject(new Error('File reading failed'));
     });
   };
+
+  // Show loading state while checking authentication
+  if (loading) {
+    return (
+      <div className="w-full max-w-4xl mx-auto space-y-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600 mx-auto"></div>
+              <p className="mt-2 text-gray-500">Loading...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Redirect to login if not authenticated
+  if (!user) {
+    return (
+      <div className="w-full max-w-4xl mx-auto space-y-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-center space-y-4">
+              <h3 className="text-lg font-semibold">Authentication Required</h3>
+              <p className="text-gray-600">Please sign in to train AI models</p>
+              <Button 
+                onClick={() => navigate('/auth/login')}
+                className="bg-brand-600 hover:bg-brand-700"
+              >
+                Sign In
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Check if button should be disabled
+  const isButtonDisabled = files.length < 5 || 
+                          files.length > 20 || 
+                          !modelName.trim() || 
+                          modelName.trim().length < 3 || 
+                          isUploading;
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6">
@@ -230,7 +288,7 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
           </div>
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h4 className="font-medium text-blue-900 mb-2">STRICT Requirements for Best Results:</h4>
+            <h4 className="font-medium text-blue-900 mb-2">Requirements for Best Results:</h4>
             <ul className="text-sm text-blue-700 space-y-1">
               <li>• Upload exactly 5-20 high-quality images (recommended: 10-15)</li>
               <li>• Include multiple angles: front, 3/4 profile, and side views</li>
@@ -249,24 +307,34 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
             </div>
           )}
 
-          <Button 
-            onClick={startTraining}
-            disabled={files.length < 5 || files.length > 20 || !modelName.trim() || modelName.trim().length < 3 || isUploading}
-            className="w-full bg-brand-600 hover:bg-brand-700"
-            size="lg"
-          >
-            {isUploading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Starting Training...
-              </>
-            ) : (
-              <>
-                Start AI Training ({files.length} photos)
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </>
+          <div className="space-y-3">
+            <Button 
+              onClick={startTraining}
+              disabled={isButtonDisabled}
+              className="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              size="lg"
+            >
+              {isUploading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Starting Training...
+                </>
+              ) : (
+                <>
+                  Start AI Training ({files.length} photos)
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </>
+              )}
+            </Button>
+            
+            {isButtonDisabled && !isUploading && (
+              <div className="text-sm text-gray-500 text-center">
+                {files.length < 5 && `Need ${5 - files.length} more images. `}
+                {files.length > 20 && `Remove ${files.length - 20} images. `}
+                {(!modelName.trim() || modelName.trim().length < 3) && "Enter a model name (min 3 characters)."}
+              </div>
             )}
-          </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

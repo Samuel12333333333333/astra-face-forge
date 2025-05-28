@@ -17,9 +17,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log('UserContext: Setting up auth state listener');
+    
     // Set up auth state listener first
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        console.log('UserContext: Auth state changed', { event, user: session?.user?.id });
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
@@ -28,16 +31,32 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
     // Then check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('UserContext: Initial session check', { user: session?.user?.id });
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      console.log('UserContext: Cleaning up auth listener');
+      subscription.unsubscribe();
+    };
   }, []);
 
+  const value = {
+    user,
+    session,
+    loading
+  };
+
+  console.log('UserContext: Current state', { 
+    hasUser: !!user, 
+    userId: user?.id, 
+    loading 
+  });
+
   return (
-    <UserContext.Provider value={{ user, session, loading }}>
+    <UserContext.Provider value={value}>
       {children}
     </UserContext.Provider>
   );
