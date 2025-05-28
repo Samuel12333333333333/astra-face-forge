@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Loader2, CheckCircle, RotateCcw } from "lucide-react";
@@ -25,28 +24,111 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<number | null>(null);
 
-  // Check for existing training session on mount
+  // Check for existing training session on mount with improved validation
   useEffect(() => {
-    const storedTuneId = localStorage.getItem('currentTuneId');
-    const storedStatus = localStorage.getItem('trainingStatus');
-    const storedStartTime = localStorage.getItem('trainingStartTime');
-    
-    if (storedTuneId && storedStatus && storedStatus !== 'completed') {
-      console.log("Recovering training session:", storedTuneId);
-      setTuneId(storedTuneId);
-      setStatus(storedStatus as any);
-      setIsTraining(true);
+    const validateAndRecoverSession = async () => {
+      const storedTuneId = localStorage.getItem('currentTuneId');
+      const storedStatus = localStorage.getItem('trainingStatus');
+      const storedStartTime = localStorage.getItem('trainingStartTime');
       
+      if (!storedTuneId || !storedStatus) {
+        console.log("No valid session to recover");
+        return;
+      }
+
+      // Check if the session is too old (more than 2 hours)
       if (storedStartTime) {
-        setStartTime(new Date(storedStartTime));
+        const startTime = new Date(storedStartTime);
+        const now = new Date();
+        const hoursSinceStart = (now.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+        
+        if (hoursSinceStart > 2) {
+          console.log("Session is too old, clearing stale data");
+          clearStoredSession();
+          return;
+        }
       }
-      
-      // Resume polling if we were training
-      if (storedStatus === 'training') {
-        pollTrainingStatus(storedTuneId);
+
+      // Only recover if status indicates active training
+      if (storedStatus === 'training' || storedStatus === 'creating-tune' || storedStatus === 'uploading-images') {
+        console.log("Validating existing training session:", storedTuneId);
+        
+        // Validate the tune still exists and get its current status
+        try {
+          const { data, error } = await supabase.functions.invoke('astria', {
+            body: {
+              action: 'check-status',
+              tuneId: storedTuneId
+            }
+          });
+
+          if (error) {
+            console.error("Error validating session:", error);
+            clearStoredSession();
+            return;
+          }
+
+          const currentStatus = data?.status;
+          console.log("Current tune status from Astria:", currentStatus);
+
+          if (currentStatus === 'finished' || currentStatus === 'completed') {
+            // Training completed while user was away
+            setTuneId(storedTuneId);
+            setStatus('completed');
+            setProgress(100);
+            localStorage.setItem('trainingStatus', 'completed');
+            onTrainingComplete(storedTuneId);
+            toast.success("🎉 Your AI model training completed while you were away!");
+          } else if (currentStatus === 'training' || currentStatus === 'queued' || currentStatus === 'processing') {
+            // Valid ongoing training
+            console.log("Recovering valid training session:", storedTuneId);
+            setTuneId(storedTuneId);
+            setStatus('training');
+            setIsTraining(true);
+            setProgress(50); // Set a reasonable progress for ongoing training
+            
+            if (storedStartTime) {
+              setStartTime(new Date(storedStartTime));
+            }
+            
+            // Resume polling
+            pollTrainingStatus(storedTuneId);
+          } else if (currentStatus === 'failed' || currentStatus === 'error') {
+            // Training failed
+            setError("Training failed while you were away");
+            setStatus('error');
+            localStorage.setItem('trainingStatus', 'error');
+          } else {
+            // Unknown or invalid status, clear session
+            console.log("Invalid tune status, clearing session");
+            clearStoredSession();
+          }
+        } catch (error) {
+          console.error("Error validating training session:", error);
+          clearStoredSession();
+        }
+      } else if (storedStatus === 'completed') {
+        // Completed session
+        setTuneId(storedTuneId);
+        setStatus('completed');
+        setProgress(100);
+      } else {
+        // Invalid status, clear session
+        console.log("Invalid stored status, clearing session");
+        clearStoredSession();
       }
-    }
+    };
+
+    validateAndRecoverSession();
   }, []);
+
+  // Helper function to clear stored session
+  const clearStoredSession = () => {
+    localStorage.removeItem('currentTuneId');
+    localStorage.removeItem('trainingStatus');
+    localStorage.removeItem('trainingStartTime');
+    console.log("Cleared stale session data");
+  };
 
   // Update estimated time remaining
   useEffect(() => {
@@ -270,9 +352,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
 
   const handleRetry = () => {
     // Clear stored session
-    localStorage.removeItem('currentTuneId');
-    localStorage.removeItem('trainingStatus');
-    localStorage.removeItem('trainingStartTime');
+    clearStoredSession();
     
     // Reset state
     setStatus('idle');
