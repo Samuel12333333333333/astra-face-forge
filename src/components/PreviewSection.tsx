@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,15 +8,15 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
 interface PreviewSectionProps {
-  selectedStyle: string | null;
+  selectedStyle: string;
   tuneId: string | null;
-  onBack: () => void;
+  onImagesGenerated: (images: string[]) => void;
 }
 
 const PreviewSection: React.FC<PreviewSectionProps> = ({
   selectedStyle,
   tuneId,
-  onBack
+  onImagesGenerated
 }) => {
   const navigate = useNavigate();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -49,6 +48,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
       if (data?.images) {
         setGeneratedImages(data.images);
         setSelectedImage(data.images[0]);
+        onImagesGenerated(data.images);
         toast.success('Generated preview images!');
       }
     } catch (error: any) {
@@ -105,17 +105,11 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center space-x-4">
-        <Button variant="outline" size="sm" onClick={onBack}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Preview Your Headshots</h1>
-          <p className="text-gray-600">
-            Style: <Badge variant="outline" className="ml-1">{selectedStyle}</Badge>
-          </p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Preview Your Headshots</h1>
+        <p className="text-gray-600">
+          Style: <Badge variant="outline" className="ml-1">{selectedStyle}</Badge>
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

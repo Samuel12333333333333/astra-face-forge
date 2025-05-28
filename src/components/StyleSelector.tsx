@@ -7,8 +7,7 @@ import { Check, ArrowLeft } from "lucide-react";
 
 interface StyleSelectorProps {
   onStyleSelected: (styleId: string) => void;
-  onBack: () => void;
-  onContinue: () => void;
+  tuneId: string | null;
 }
 
 const styles = [
@@ -41,8 +40,7 @@ const styles = [
 
 const StyleSelector: React.FC<StyleSelectorProps> = ({
   onStyleSelected,
-  onBack,
-  onContinue
+  tuneId
 }) => {
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
 
@@ -51,22 +49,11 @@ const StyleSelector: React.FC<StyleSelectorProps> = ({
     onStyleSelected(styleId);
   };
 
-  const handleContinue = () => {
-    if (!selectedStyle) return;
-    onContinue();
-  };
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center space-x-4">
-        <Button variant="outline" size="sm" onClick={onBack}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Choose Your Style</h1>
-          <p className="text-gray-600">Select the style that best fits your needs</p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Choose Your Style</h1>
+        <p className="text-gray-600">Select the style that best fits your needs</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -111,17 +98,6 @@ const StyleSelector: React.FC<StyleSelectorProps> = ({
             </CardContent>
           </Card>
         ))}
-      </div>
-
-      <div className="flex justify-center">
-        <Button
-          onClick={handleContinue}
-          disabled={!selectedStyle}
-          size="lg"
-          className="bg-brand-600 hover:bg-brand-700"
-        >
-          Continue to Preview
-        </Button>
       </div>
     </div>
   );
