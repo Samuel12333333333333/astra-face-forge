@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+
+import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Sidebar,
@@ -34,8 +35,6 @@ import {
   ChevronRight
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { supabase } from "@/integrations/supabase/client";
-import { User as SupabaseUser } from "@supabase/supabase-js";
 
 const mainNavigation = [
   {
@@ -108,24 +107,6 @@ const quickActions = [
 
 export function AppSidebar() {
   const location = useLocation();
-  const [user, setUser] = useState<SupabaseUser | null>(null);
-
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-    };
-
-    getUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user ?? null);
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, []);
 
   return (
     <Sidebar collapsible="icon" className="border-r bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -234,7 +215,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t p-4">
-        <UserProfileDropdown user={user} />
+        <UserProfileDropdown />
       </SidebarFooter>
       
       <SidebarRail />
