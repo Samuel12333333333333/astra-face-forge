@@ -7,14 +7,14 @@ import { Camera, Plus, Sparkles, TrendingUp, Users, Zap, Clock } from "lucide-re
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
 
 interface DashboardStats {
   totalModels: number;
   activeModels: number;
   processingModels: number;
   totalImages: number;
-  recentModels: any[];
-  recentImages: any[];
+  recentActivity: any[];
 }
 
 const DashboardOverview = () => {
@@ -23,8 +23,7 @@ const DashboardOverview = () => {
     activeModels: 0,
     processingModels: 0,
     totalImages: 0,
-    recentModels: [],
-    recentImages: []
+    recentActivity: []
   });
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
@@ -58,7 +57,7 @@ const DashboardOverview = () => {
         throw modelsError;
       }
 
-      // Load images data
+      // Load images data with proper join
       const { data: images, error: imagesError } = await supabase
         .from('images')
         .select(`
@@ -66,12 +65,10 @@ const DashboardOverview = () => {
           models!inner(user_id)
         `)
         .eq('models.user_id', currentUser.id)
-        .order('created_at', { ascending: false })
-        .limit(10);
+        .order('created_at', { ascending: false });
 
       if (imagesError) {
         console.error('Error loading images:', imagesError);
-        // Don't throw here, images might not exist yet
       }
 
       const allModels = models || [];
@@ -80,13 +77,30 @@ const DashboardOverview = () => {
       const activeModels = allModels.filter(m => m.status === 'completed');
       const processingModels = allModels.filter(m => m.status === 'processing' || m.status === 'training');
       
+      // Create recent activity feed
+      const recentActivity = [
+        ...allModels.slice(0, 3).map(model => ({
+          type: 'model',
+          action: `Model ${model.status}`,
+          name: model.name || `Model ${model.id.toString().slice(-8)}`,
+          timestamp: model.created_at,
+          status: model.status
+        })),
+        ...allImages.slice(0, 3).map(image => ({
+          type: 'image',
+          action: 'Image generated',
+          name: 'New headshot',
+          timestamp: image.created_at,
+          status: 'completed'
+        }))
+      ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 5);
+      
       setStats({
         totalModels: allModels.length,
         activeModels: activeModels.length,
         processingModels: processingModels.length,
         totalImages: allImages.length,
-        recentModels: allModels.slice(0, 5),
-        recentImages: allImages.slice(0, 4)
+        recentActivity
       });
 
     } catch (error: any) {
@@ -111,18 +125,6 @@ const DashboardOverview = () => {
     }
   };
 
-  const getTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
-    if (diffInHours < 1) return 'Just now';
-    if (diffInHours < 24) return `${diffInHours}h ago`;
-    const diffInDays = Math.floor(diffInHours / 24);
-    if (diffInDays < 7) return `${diffInDays}d ago`;
-    return date.toLocaleDateString();
-  };
-
   if (isLoading) {
     return (
       <div className="p-6 space-y-6">
@@ -143,7 +145,7 @@ const DashboardOverview = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
@@ -210,103 +212,66 @@ const DashboardOverview = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Recent Models</CardTitle>
-            <CardDescription>Your latest AI model training activities</CardDescription>
+            <CardTitle>Quick Actions</CardTitle>
+            <CardDescription>Common tasks to get you started</CardDescription>
           </CardHeader>
           <CardContent>
-            {stats.recentModels.length > 0 ? (
-              <div className="space-y-4">
-                {stats.recentModels.map((model: any) => (
-                  <div key={model.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex-1">
-                      <p className="font-medium">
-                        {model.name || `Model ${model.id.toString().slice(-8)}`}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Created {getTimeAgo(model.created_at)}
-                      </p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Badge className={getStatusColor(model.status)}>
-                        {model.status}
-                      </Badge>
-                      {model.status === 'completed' && model.modelid && (
-                        <Link to={`/dashboard/tunes/${model.modelid}/generate`}>
-                          <Button size="sm" variant="outline">
-                            <Sparkles className="h-3 w-3" />
-                          </Button>
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                <Link to="/dashboard/tunes">
+            <div className="space-y-3">
+              <Link to="/train" className="block">
+                <Button className="w-full bg-brand-600 hover:bg-brand-700">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Train New Model
+                </Button>
+              </Link>
+              <Link to="/dashboard/tunes" className="block">
+                <Button variant="outline" className="w-full">
+                  <Camera className="mr-2 h-4 w-4" />
+                  View My Models
+                </Button>
+              </Link>
+              {stats.activeModels > 0 && (
+                <Link to="/dashboard/generate" className="block">
                   <Button variant="outline" className="w-full">
-                    View All Models
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Generate Images
                   </Button>
                 </Link>
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <Camera className="mx-auto h-8 w-8 text-gray-400 mb-2" />
-                <p className="text-muted-foreground">No models yet</p>
-                <Link to="/train">
-                  <Button size="sm" className="mt-2">
-                    Train Your First Model
-                  </Button>
-                </Link>
-              </div>
-            )}
+              )}
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Recent Generations</CardTitle>
-            <CardDescription>Your latest generated images</CardDescription>
+            <CardTitle>Recent Activity</CardTitle>
+            <CardDescription>Your latest actions and updates</CardDescription>
           </CardHeader>
           <CardContent>
-            {stats.recentImages.length > 0 ? (
+            {stats.recentActivity.length > 0 ? (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-2">
-                  {stats.recentImages.slice(0, 4).map((image: any) => (
-                    <div key={image.id} className="aspect-square rounded-lg overflow-hidden border">
-                      <img 
-                        src={image.uri} 
-                        alt="Generated headshot"
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          target.parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400"><Camera class="h-6 w-6" /></div>';
-                        }}
-                      />
+                {stats.recentActivity.map((activity, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex-1">
+                      <p className="font-medium">{activity.action}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {activity.name} • {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
+                      </p>
                     </div>
-                  ))}
-                </div>
-                <Link to="/dashboard/gallery">
-                  <Button variant="outline" className="w-full">
-                    View All Images
-                  </Button>
-                </Link>
+                    <Badge className={getStatusColor(activity.status)}>
+                      {activity.status}
+                    </Badge>
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="text-center py-8">
-                <Sparkles className="mx-auto h-8 w-8 text-gray-400 mb-2" />
-                <p className="text-muted-foreground">No images generated yet</p>
-                {stats.activeModels > 0 ? (
-                  <Link to="/dashboard/tunes">
-                    <Button size="sm" className="mt-2">
-                      Generate Images
-                    </Button>
-                  </Link>
-                ) : (
-                  <Link to="/train">
-                    <Button size="sm" className="mt-2">
-                      Train a Model First
-                    </Button>
-                  </Link>
-                )}
+                <Clock className="mx-auto h-8 w-8 text-gray-400 mb-2" />
+                <p className="text-muted-foreground">No recent activity</p>
+                <Link to="/train">
+                  <Button size="sm" className="mt-2">
+                    Get Started
+                  </Button>
+                </Link>
               </div>
             )}
           </CardContent>
