@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Loader2, CheckCircle, RotateCcw } from "lucide-react";
@@ -151,6 +152,8 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
 
     const checkStatus = async (): Promise<void> => {
       try {
+        console.log(`Checking status for tune ID: ${tuneId} (attempt ${attempts + 1})`);
+        
         const { data, error } = await supabase.functions.invoke('astria', {
           body: {
             action: 'check-status',
@@ -164,19 +167,14 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
         }
 
         const currentStatus = data?.status || 'unknown';
-        console.log(`Training status: ${currentStatus} (attempt ${attempts + 1})`);
+        const trainedAt = data?.trained_at;
+        
+        console.log(`Training status: ${currentStatus}, trained_at: ${trainedAt} (attempt ${attempts + 1})`);
+        console.log("Full status response:", data);
 
-        if (currentStatus === 'training' || currentStatus === 'queued' || currentStatus === 'processing') {
-          const progressValue = 50 + (attempts / maxAttempts) * 40; // 50-90%
-          setProgress(Math.min(progressValue, 90));
-          
-          attempts++;
-          if (attempts < maxAttempts) {
-            setTimeout(checkStatus, 30000); // Check every 30 seconds
-          } else {
-            throw new Error("Training is taking longer than expected. We'll email you when it's ready.");
-          }
-        } else if (currentStatus === 'finished' || currentStatus === 'completed') {
+        // Check if training is completed - look for trained_at field
+        if (trainedAt || currentStatus === 'finished' || currentStatus === 'completed') {
+          console.log("Training completed! trained_at:", trainedAt);
           setProgress(100);
           setStatus('completed');
           localStorage.setItem('trainingStatus', 'completed');
@@ -200,8 +198,25 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
 
           onTrainingComplete(tuneId);
           toast.success("🎉 Training completed! Your AI model is ready to create professional headshots.");
-        } else if (currentStatus === 'failed' || currentStatus === 'error') {
+          return;
+        }
+
+        // Check for failure states
+        if (currentStatus === 'failed' || currentStatus === 'error') {
           throw new Error("Training failed on Astria's servers. Please try again with different photos.");
+        }
+
+        // Still training - continue polling
+        if (currentStatus === 'training' || currentStatus === 'queued' || currentStatus === 'processing' || !trainedAt) {
+          const progressValue = 50 + (attempts / maxAttempts) * 40; // 50-90%
+          setProgress(Math.min(progressValue, 90));
+          
+          attempts++;
+          if (attempts < maxAttempts) {
+            setTimeout(checkStatus, 30000); // Check every 30 seconds
+          } else {
+            throw new Error("Training is taking longer than expected. We'll email you when it's ready.");
+          }
         } else {
           // Unknown status, continue polling
           attempts++;
@@ -250,6 +265,46 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
     setEstimatedTimeRemaining(null);
   };
 
+  // Add a manual status check function for debugging
+  const checkCurrentStatus = async () => {
+    if (!tuneId) {
+      toast.error("No tune ID available to check");
+      return;
+    }
+
+    try {
+      console.log(`Manually checking status for tune ID: ${tuneId}`);
+      
+      const { data, error } = await supabase.functions.invoke('astria', {
+        body: {
+          action: 'check-status',
+          tuneId: tuneId
+        }
+      });
+
+      if (error) {
+        console.error("Manual status check error:", error);
+        toast.error(`Status check failed: ${error.message}`);
+        return;
+      }
+
+      console.log("Manual status check result:", data);
+      toast.info(`Current status: ${data?.status}, trained_at: ${data?.trained_at ? 'Yes' : 'No'}`);
+      
+      // If completed, update state
+      if (data?.trained_at || data?.status === 'finished' || data?.status === 'completed') {
+        setStatus('completed');
+        setProgress(100);
+        setIsTraining(false);
+        onTrainingComplete(tuneId);
+        toast.success("Training is actually completed! You can continue.");
+      }
+    } catch (error: any) {
+      console.error("Manual check error:", error);
+      toast.error(`Manual check failed: ${error.message}`);
+    }
+  };
+
   return (
     <div className="w-full max-w-2xl mx-auto">
       <TrainingStatusCard 
@@ -282,6 +337,16 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
             `Start AI Training with ${images.length} Images (20-30 min)`
           )}
         </Button>
+
+        {tuneId && status === 'training' && (
+          <Button
+            onClick={checkCurrentStatus}
+            variant="outline"
+            className="w-full"
+          >
+            Check Status Now (Debug)
+          </Button>
+        )}
 
         {status === 'error' && (
           <Button
