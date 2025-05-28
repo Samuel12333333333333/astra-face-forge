@@ -38,8 +38,8 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
         console.log('Real-time training completion received:', payload);
         
         // Check if this notification is for the current user
-        const { data: { user } } = supabase.auth.getUser();
-        user.then(({ data: { user } }) => {
+        const checkUser = async () => {
+          const { data: { user } } = await supabase.auth.getUser();
           if (user && payload.payload?.userId === user.id && payload.payload?.tuneId === tuneId) {
             console.log('Training completed via real-time notification!');
             setStatus('completed');
@@ -53,7 +53,8 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
             onTrainingComplete(payload.payload.tuneId);
             toast.success("🎉 Training completed! Your AI model is ready to create professional headshots.");
           }
-        });
+        };
+        checkUser();
       })
       .on('broadcast', { event: 'tune-created' }, (payload) => {
         console.log('Real-time tune creation received:', payload);
