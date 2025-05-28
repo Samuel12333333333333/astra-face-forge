@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,16 +38,37 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
         throw new Error('User not authenticated');
       }
 
-      console.log(`Starting training with ${images.length} images for model: ${modelName}`);
+      console.log(`Starting training with ${images?.length || 0} images for model: ${modelName}`);
 
-      // Convert images to base64
+      if (!images || images.length === 0) {
+        throw new Error('No images provided for training');
+      }
+
+      // Convert images to base64 with error handling
       setStatusMessage('Processing images...');
-      const imageData = await Promise.all(
-        images.map(async (file) => {
+      const imageData: string[] = [];
+      
+      for (let i = 0; i < images.length; i++) {
+        const file = images[i];
+        if (!file || !(file instanceof File)) {
+          console.error(`Invalid file at index ${i}:`, file);
+          continue;
+        }
+        
+        try {
           const base64 = await fileToBase64(file);
-          return base64; // Just return the base64 string
-        })
-      );
+          if (base64) {
+            imageData.push(base64);
+          }
+        } catch (error) {
+          console.error(`Error converting file ${i} to base64:`, error);
+          toast.error(`Error processing image: ${file.name}`);
+        }
+      }
+
+      if (imageData.length === 0) {
+        throw new Error('No valid images could be processed');
+      }
 
       setProgress(30);
       setStatusMessage('Uploading to AI training service...');
@@ -69,7 +89,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
 
       console.log('Astria response:', data);
 
-      if (data.id) {
+      if (data?.id) {
         setTuneId(data.id);
         setTrainingStatus('training');
         setStatusMessage('AI model training in progress...');
@@ -86,13 +106,18 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
     } catch (error: any) {
       console.error('Training error:', error);
       setTrainingStatus('failed');
-      setStatusMessage(`Training failed: ${error.message}`);
-      toast.error(`Training failed: ${error.message}`);
+      setStatusMessage(`Training failed: ${error?.message || 'Unknown error'}`);
+      toast.error(`Training failed: ${error?.message || 'Unknown error'}`);
       setIsTraining(false);
     }
   };
 
   const pollTrainingStatus = async (tuneId: string) => {
+    if (!tuneId) {
+      console.error('No tune ID provided for polling');
+      return;
+    }
+
     console.log('Starting status polling for tune:', tuneId);
     
     const pollInterval = setInterval(async () => {
@@ -113,7 +138,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
 
         console.log('Status check response:', data);
 
-        if (data.status === 'completed' || data.trained_at) {
+        if (data?.status === 'completed' || data?.trained_at) {
           clearInterval(pollInterval);
           setTrainingStatus('completed');
           setProgress(100);
@@ -121,13 +146,13 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
           setIsTraining(false);
           onTrainingComplete(tuneId);
           toast.success('🎉 Your AI model is ready! You can now generate headshots.');
-        } else if (data.status === 'failed') {
+        } else if (data?.status === 'failed') {
           clearInterval(pollInterval);
           setTrainingStatus('failed');
           setStatusMessage('Training failed');
           setIsTraining(false);
           toast.error('Training failed. Please try again with different photos.');
-        } else if (data.status === 'training' || data.status === 'processing') {
+        } else if (data?.status === 'training' || data?.status === 'processing') {
           // Still training - update progress
           const newProgress = Math.min(90, progress + 2);
           setProgress(newProgress);
@@ -150,13 +175,31 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
+      if (!file || !(file instanceof File)) {
+        reject(new Error('Invalid file provided'));
+        return;
+      }
+
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = () => {
-        const result = reader.result as string;
-        resolve(result.split(',')[1]); // Remove data:image/...;base64, prefix
+        try {
+          const result = reader.result as string;
+          if (!result || typeof result !== 'string') {
+            reject(new Error('Failed to read file'));
+            return;
+          }
+          const base64 = result.split(',')[1]; // Remove data:image/...;base64, prefix
+          if (!base64) {
+            reject(new Error('Failed to extract base64 data'));
+            return;
+          }
+          resolve(base64);
+        } catch (error) {
+          reject(error);
+        }
       };
-      reader.onerror = reject;
+      reader.onerror = () => reject(new Error('File reading failed'));
     });
   };
 
@@ -182,7 +225,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h4 className="font-medium text-blue-900 mb-2">What's happening now?</h4>
               <p className="text-sm text-blue-700">
-                Our AI is analyzing your {images.length} photos and learning your unique features to create 
+                Our AI is analyzing your {images?.length || 0} photos and learning your unique features to create 
                 the most accurate and professional headshots possible.
               </p>
             </div>
@@ -232,7 +275,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <h4 className="font-medium text-blue-900 mb-2">Ready to Train</h4>
             <p className="text-sm text-blue-700">
-              We'll use your {images.length} photos to train a personalized AI model named "{modelName}".
+              We'll use your {images?.length || 0} photos to train a personalized AI model named "{modelName}".
             </p>
           </div>
         );
@@ -245,7 +288,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
         <CardHeader>
           <CardTitle>AI Model Training</CardTitle>
           <CardDescription>
-            Training your personalized AI model with {images.length} photos
+            Training your personalized AI model with {images?.length || 0} photos
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -281,7 +324,7 @@ const TrainingSection: React.FC<TrainingSectionProps> = ({
             {trainingStatus === 'idle' && (
               <Button 
                 onClick={startTraining}
-                disabled={images.length < 5}
+                disabled={!images || images.length < 5}
                 className="w-full bg-brand-600 hover:bg-brand-700"
                 size="lg"
               >

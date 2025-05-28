@@ -38,21 +38,45 @@ const Index = () => {
   }
 
   const handlePhotosUploaded = (files: File[], name: string) => {
-    setUploadedFiles(files);
-    setModelName(name);
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      console.error('Invalid files provided:', files);
+      return;
+    }
+    
+    console.log('Photos uploaded:', files.length, 'files, model name:', name);
+    setUploadedFiles([...files]); // Create a new array to ensure state update
+    setModelName(name || '');
   };
 
   const handleTrainingComplete = (completedTuneId: string) => {
+    if (!completedTuneId) {
+      console.error('Invalid tune ID provided:', completedTuneId);
+      return;
+    }
+    
+    console.log('Training completed with tune ID:', completedTuneId);
     setTuneId(completedTuneId);
   };
 
   const handleStyleSelected = (style: string) => {
+    if (!style) {
+      console.error('Invalid style provided:', style);
+      return;
+    }
+    
+    console.log('Style selected:', style);
     setSelectedStyle(style);
     setCurrentStep(4);
   };
 
   const handleImagesGenerated = (images: string[]) => {
-    setGeneratedImages(images);
+    if (!images || !Array.isArray(images)) {
+      console.error('Invalid images provided:', images);
+      return;
+    }
+    
+    console.log('Images generated:', images.length);
+    setGeneratedImages([...images]);
   };
 
   const canGoBack = () => {
@@ -66,7 +90,7 @@ const Index = () => {
       case 1:
         return uploadedFiles.length >= 5 && modelName.trim().length > 0;
       case 2:
-        return tuneId !== null;
+        return tuneId !== null && tuneId.length > 0;
       case 3:
         return selectedStyle.length > 0;
       case 4:
@@ -78,62 +102,70 @@ const Index = () => {
 
   const handleBack = () => {
     if (canGoBack()) {
-      setCurrentStep(prev => prev - 1);
+      const newStep = Math.max(1, currentStep - 1);
+      console.log('Going back to step:', newStep);
+      setCurrentStep(newStep);
     }
   };
 
   const handleForward = () => {
     if (canGoForward()) {
-      if (currentStep === 1) {
-        setCurrentStep(2);
-      } else if (currentStep === 2) {
-        setCurrentStep(3);
-      } else if (currentStep === 3) {
-        setCurrentStep(4);
-      }
+      const newStep = Math.min(4, currentStep + 1);
+      console.log('Going forward to step:', newStep);
+      setCurrentStep(newStep);
     }
   };
 
   const renderCurrentStep = () => {
-    switch (currentStep) {
-      case 1:
-        return (
-          <MultiUploadSection
-            onPhotosUploaded={handlePhotosUploaded}
-            onContinue={() => setCurrentStep(2)}
-          />
-        );
-      case 2:
-        return (
-          <TrainingSection
-            images={uploadedFiles}
-            modelName={modelName}
-            onTrainingComplete={handleTrainingComplete}
-            onContinue={() => setCurrentStep(3)}
-          />
-        );
-      case 3:
-        return (
-          <StyleSelector
-            onStyleSelected={handleStyleSelected}
-            tuneId={tuneId}
-          />
-        );
-      case 4:
-        return (
-          <PreviewSection
-            selectedStyle={selectedStyle}
-            tuneId={tuneId}
-            onImagesGenerated={handleImagesGenerated}
-          />
-        );
-      default:
-        return (
-          <MultiUploadSection
-            onPhotosUploaded={handlePhotosUploaded}
-            onContinue={() => setCurrentStep(2)}
-          />
-        );
+    try {
+      switch (currentStep) {
+        case 1:
+          return (
+            <MultiUploadSection
+              onPhotosUploaded={handlePhotosUploaded}
+              onContinue={() => setCurrentStep(2)}
+            />
+          );
+        case 2:
+          return (
+            <TrainingSection
+              images={uploadedFiles}
+              modelName={modelName}
+              onTrainingComplete={handleTrainingComplete}
+              onContinue={() => setCurrentStep(3)}
+            />
+          );
+        case 3:
+          return (
+            <StyleSelector
+              onStyleSelected={handleStyleSelected}
+              tuneId={tuneId}
+            />
+          );
+        case 4:
+          return (
+            <PreviewSection
+              selectedStyle={selectedStyle}
+              tuneId={tuneId}
+              onImagesGenerated={handleImagesGenerated}
+            />
+          );
+        default:
+          console.error('Invalid step:', currentStep);
+          return (
+            <MultiUploadSection
+              onPhotosUploaded={handlePhotosUploaded}
+              onContinue={() => setCurrentStep(2)}
+            />
+          );
+      }
+    } catch (error) {
+      console.error('Error rendering step:', currentStep, error);
+      return (
+        <div className="text-center py-8">
+          <p className="text-red-600">Error loading step. Please refresh the page.</p>
+        </div>
+      );
     }
   };
 

@@ -21,7 +21,7 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
   const [previews, setPreviews] = useState<string[]>([]);
 
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(e.target.files || []);
+    const selectedFiles = e.target.files ? Array.from(e.target.files) : [];
     
     if (files.length + selectedFiles.length > 12) {
       toast.error("Maximum 12 photos allowed");
@@ -31,26 +31,38 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
     const newFiles = [...files, ...selectedFiles];
     setFiles(newFiles);
 
-    // Generate previews
+    // Generate previews safely
     const newPreviews = [...previews];
     selectedFiles.forEach((file, index) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        newPreviews[files.length + index] = e.target?.result as string;
-        setPreviews([...newPreviews]);
-      };
-      reader.readAsDataURL(file);
+      if (file && file instanceof File) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          if (e.target?.result) {
+            const previewIndex = files.length + index;
+            newPreviews[previewIndex] = e.target.result as string;
+            setPreviews([...newPreviews]);
+          }
+        };
+        reader.onerror = () => {
+          console.error('Error reading file:', file.name);
+        };
+        reader.readAsDataURL(file);
+      }
     });
 
-    toast.success(`${selectedFiles.length} photos added`);
+    if (selectedFiles.length > 0) {
+      toast.success(`${selectedFiles.length} photos added`);
+    }
   }, [files, previews]);
 
   const removeFile = (index: number) => {
-    const newFiles = files.filter((_, i) => i !== index);
-    const newPreviews = previews.filter((_, i) => i !== index);
-    setFiles(newFiles);
-    setPreviews(newPreviews);
-    toast.success("Photo removed");
+    if (index >= 0 && index < files.length) {
+      const newFiles = files.filter((_, i) => i !== index);
+      const newPreviews = previews.filter((_, i) => i !== index);
+      setFiles(newFiles);
+      setPreviews(newPreviews);
+      toast.success("Photo removed");
+    }
   };
 
   const handleSubmit = () => {
@@ -63,8 +75,13 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
       return;
     }
     
-    onPhotosUploaded(files, modelName.trim());
-    onContinue();
+    try {
+      onPhotosUploaded(files, modelName.trim());
+      onContinue();
+    } catch (error) {
+      console.error('Error submitting photos:', error);
+      toast.error("Error uploading photos. Please try again.");
+    }
   };
 
   return (
@@ -100,7 +117,12 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
               />
               <Button
                 variant="outline"
-                onClick={() => document.getElementById('photo-upload')?.click()}
+                onClick={() => {
+                  const input = document.getElementById('photo-upload') as HTMLInputElement;
+                  if (input) {
+                    input.click();
+                  }
+                }}
                 disabled={files.length >= 12}
               >
                 <Upload className="mr-2 h-4 w-4" />
@@ -111,7 +133,12 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
             {files.length === 0 ? (
               <div 
                 className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center cursor-pointer hover:border-brand-500 transition-colors"
-                onClick={() => document.getElementById('photo-upload')?.click()}
+                onClick={() => {
+                  const input = document.getElementById('photo-upload') as HTMLInputElement;
+                  if (input) {
+                    input.click();
+                  }
+                }}
               >
                 <Camera className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">Upload your photos</h3>
@@ -121,23 +148,31 @@ const MultiUploadSection: React.FC<MultiUploadSectionProps> = ({
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {previews.map((preview, index) => (
-                  <div key={index} className="relative group">
-                    <div className="aspect-square rounded-lg overflow-hidden bg-gray-100">
-                      <img
-                        src={preview}
-                        alt={`Upload ${index + 1}`}
-                        className="w-full h-full object-cover"
-                      />
+                {previews.map((preview, index) => {
+                  if (!preview || index >= files.length) return null;
+                  
+                  return (
+                    <div key={`preview-${index}`} className="relative group">
+                      <div className="aspect-square rounded-lg overflow-hidden bg-gray-100">
+                        <img
+                          src={preview}
+                          alt={`Upload ${index + 1}`}
+                          className="w-full h-full object-cover"
+                          onError={() => {
+                            console.error('Error loading preview image at index:', index);
+                          }}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeFile(index)}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => removeFile(index)}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
