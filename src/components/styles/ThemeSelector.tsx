@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,6 +16,22 @@ interface ThemeSelectorProps {
   };
 }
 
+interface Theme {
+  id: string;
+  name: string;
+  description: string;
+  features: string[];
+  recommended: string[];
+  industries: string[];
+  icon: any;
+  gradient: string;
+  popular?: boolean;
+}
+
+interface ThemeWithScore extends Theme {
+  score: number;
+}
+
 const ThemeSelector: React.FC<ThemeSelectorProps> = ({
   onThemeSelected,
   onBack,
@@ -25,7 +40,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
 }) => {
   const [selectedTheme, setSelectedTheme] = useState<string | null>(null);
 
-  const themes = [
+  const themes: Theme[] = [
     {
       id: 'boardroom-bold',
       name: 'Boardroom Bold',
@@ -90,8 +105,8 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
   ];
 
   // Filter themes based on user profile
-  const getRecommendedThemes = () => {
-    if (!userProfile) return themes;
+  const getRecommendedThemes = (): ThemeWithScore[] => {
+    if (!userProfile) return themes.map(theme => ({ ...theme, score: 0 }));
     
     return themes.map(theme => ({
       ...theme,
@@ -99,7 +114,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
     })).sort((a, b) => b.score - a.score);
   };
 
-  const calculateRecommendationScore = (theme: any) => {
+  const calculateRecommendationScore = (theme: Theme) => {
     let score = 0;
     
     // Check goal alignment
@@ -109,7 +124,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
     score += goalMatches * 3;
     
     // Check industry alignment
-    if (theme.industries.includes(userProfile?.industry)) {
+    if (theme.industries.includes(userProfile?.industry || '')) {
       score += 2;
     }
     
