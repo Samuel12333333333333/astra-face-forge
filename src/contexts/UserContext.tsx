@@ -37,6 +37,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (error) {
         console.error('UserContext: Error getting session:', error);
+        setLoading(false);
+        return;
       }
       console.log('UserContext: Initial session check', { 
         user: session?.user?.id,
@@ -44,6 +46,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       });
       setSession(session);
       setUser(session?.user ?? null);
+      setLoading(false);
+    }).catch((error) => {
+      console.error('UserContext: Session check failed:', error);
       setLoading(false);
     });
 
