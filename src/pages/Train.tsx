@@ -7,6 +7,8 @@ import MultiUploadSection from "@/components/MultiUploadSection";
 const Train = () => {
   const { user, loading } = useUser();
 
+  console.log("Train page - Auth state:", { user: user?.id, loading });
+
   // Show loading state while checking authentication
   if (loading) {
     return (
@@ -18,8 +20,11 @@ const Train = () => {
 
   // Redirect to login if not authenticated
   if (!user) {
+    console.log("Train page - No user, redirecting to login");
     return <Navigate to="/auth/login" replace />;
   }
+
+  console.log("Train page - User authenticated, showing training interface");
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
