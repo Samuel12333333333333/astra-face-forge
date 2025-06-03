@@ -105,7 +105,7 @@ const TunesPage = () => {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-gray-900">My AI Models</h1>
-        <Link to="/">
+        <Link to="/train">
           <Button className="bg-brand-600 hover:bg-brand-700">
             <Plus className="mr-2 h-4 w-4" />
             Train New Model
@@ -119,7 +119,7 @@ const TunesPage = () => {
             <Camera className="mx-auto h-12 w-12 text-gray-400 mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No AI models yet</h3>
             <p className="text-gray-500 mb-6">Get started by training your first AI model</p>
-            <Link to="/">
+            <Link to="/train">
               <Button className="bg-brand-600 hover:bg-brand-700">
                 <Plus className="mr-2 h-4 w-4" />
                 Train Your First Model
@@ -173,7 +173,7 @@ const TunesPage = () => {
                   {tune.status === 'failed' && (
                     <div className="text-center py-4">
                       <p className="text-sm text-red-600">Training failed</p>
-                      <Link to="/">
+                      <Link to="/train">
                         <Button variant="outline" size="sm" className="mt-2">
                           Try Again
                         </Button>

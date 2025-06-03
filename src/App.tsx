@@ -8,6 +8,7 @@ import { UserProvider } from "@/contexts/UserContext";
 import ModernDashboard from "./components/dashboard/ModernDashboard";
 import Auth from "./pages/Auth";
 import Index from "./pages/Index";
+import Train from "./pages/Train";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -31,6 +32,7 @@ const App = () => (
           <Routes>
             <Route path="/auth/*" element={<Auth />} />
             <Route path="/dashboard/*" element={<ModernDashboard />} />
+            <Route path="/train" element={<Train />} />
             <Route path="/" element={<Index />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
